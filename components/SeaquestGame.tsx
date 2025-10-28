@@ -1718,18 +1718,6 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
                 indicatorHeight
             );
         }
-        
-        // Draw combo indicator if active
-        if (game.diver.comboCounter > 0) {
-            ctx.fillStyle = "#ffff00";
-            ctx.font = "12px Arial";
-            ctx.textAlign = "center";
-            ctx.fillText(
-                `x${game.diver.comboCounter}`,
-                game.diver.x + game.diver.width/2,
-                game.diver.y - 15
-            );
-        }
     }
 
     const drawParticles = () => {
