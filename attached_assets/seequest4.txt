@@ -1,0 +1,1091 @@
+"use client"
+
+import { useEffect, useRef, useState, useCallback } from "react"
+
+// --- Interfaces ---
+interface GameObject {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+interface Treasure extends GameObject {
+  color: string
+  value: number
+  angle: number        // For rotation
+  rotationSpeed: number
+  dy: number           // Vertical speed for falling
+  targetY: number      // Y position to stop falling at
+  isFalling: boolean
+}
+
+interface RescueDiver extends GameObject {
+  color: string
+  offset: number
+  dx: number
+}
+
+interface Enemy extends GameObject {
+  color: string
+  dx: number
+  amplitude: number
+  frequency: number
+  offsetY: number
+  baseY: number
+}
+
+interface OxygenBubble {
+  x: number
+  y: number
+  radius: number
+  speed: number
+  color: string
+  oxygenAmount: number
+  offset: number
+  isLarge: boolean
+  pulse?: number
+}
+
+interface Harpoon {
+  x: number
+  y: number
+  dx: number
+  dy: number
+  length: number
+  width: number
+  angle: number
+  lifespan: number
+}
+
+// Added Particle Interface
+interface Particle {
+    x: number;
+    y: number;
+    dx: number;
+    dy: number;
+    radius: number;
+    color: string;
+    lifespan: number; // In frames or ms
+    initialLifespan: number;
+}
+
+// --- Constants ---
+const MAX_OXYGEN = 300;
+const COMBO_TIMEOUT_FRAMES = 180; // 3 seconds at 60fps
+const GRAVITY = 0.03; // Affects falling treasures
+const PARTICLE_LIFESPAN = 60; // Frames
+const RAPID_FIRE_THRESHOLD_FACTOR = 0.5; // Allow firing again when cooldown is 50% done if space held
+
+export default function SeaquestGame() {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [restartTrigger, setRestartTrigger] = useState(0)
+  const [uiGameState, setUiGameState] = useState<"start" | "playing" | "over">("start")
+  const [finalScore, setFinalScore] = useState(0)
+
+  // --- Game State Ref ---
+  const gameInstance = useRef<{
+    ctx: CanvasRenderingContext2D | null
+    animationFrameId: number | null
+    gameStarted: boolean
+    gameOver: boolean
+    score: number
+    oxygen: number
+    level: number
+    treasures: Treasure[]
+    rescueDivers: RescueDiver[]
+    enemies: Enemy[]
+    oxygenBubbles: OxygenBubble[]
+    harpoons: Harpoon[]
+    particles: Particle[] // Added particles array
+    diver: {
+      x: number
+      y: number
+      width: number
+      height: number
+      speed: number
+      baseSpeed: number // Store original speed for power-ups later
+      dx: number
+      dy: number
+      color: string
+      oxygenDepletionRate: number
+      size: number
+      canFire: boolean
+      weaponCooldown: number
+      weaponCooldownMax: number
+      facingDirection: 'left' | 'right'
+      comboCounter: number
+      comboTimer: number
+      // Power-up states (placeholders for now)
+      isShieldActive: boolean
+      shieldTimer: number
+    }
+    keys: Record<string, boolean>
+    lastUpdateTime: number
+  } | null>(null)
+
+  const handleRestart = useCallback(() => {
+    setRestartTrigger((prev) => prev + 1)
+    setUiGameState("start")
+  }, [])
+
+  // --- Main Game Effect Hook ---
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    // Initialize or re-initialize game state
+    if (!gameInstance.current || restartTrigger > 0) {
+      console.log("Setting up game instance. Restart Trigger:", restartTrigger);
+      gameInstance.current = {
+        ctx: ctx,
+        animationFrameId: null,
+        gameStarted: false,
+        gameOver: false,
+        score: 0,
+        oxygen: MAX_OXYGEN,
+        level: 1,
+        treasures: [],
+        rescueDivers: [],
+        enemies: [],
+        oxygenBubbles: [],
+        harpoons: [],
+        particles: [], // Initialize particles
+        diver: {
+          x: canvas.width / 2,
+          y: canvas.height / 2,
+          width: 30,
+          height: 20,
+          speed: 4,
+          baseSpeed: 4,
+          dx: 0,
+          dy: 0,
+          color: "#00a8ff",
+          oxygenDepletionRate: 0.05,
+          size: 1,
+          canFire: true,
+          weaponCooldown: 0,
+          weaponCooldownMax: 30,
+          facingDirection: 'right',
+          comboCounter: 0,
+          comboTimer: 0,
+          isShieldActive: false,
+          shieldTimer: 0,
+        },
+        keys: { ArrowRight: false, ArrowLeft: false, ArrowUp: false, ArrowDown: false, Space: false },
+        lastUpdateTime: performance.now(),
+      }
+    }
+
+    const game = gameInstance.current
+    if (!game) return;
+
+    // --- Generation Functions ---
+    const generateTreasures = (count: number, position?: { x: number, y: number }) => {
+      console.log(`Generating ${count} falling treasures.`);
+      for (let i = 0; i < count; i++) {
+        const startX = position?.x ?? Math.random() * (canvas.width - 20);
+        const startY = position?.y ?? 50; // Start near top if no position
+        const stopY = canvas.height - 25 - Math.random() * 10; // Stop near bottom
+
+        game.treasures.push({
+          x: Math.max(10, Math.min(canvas.width - 10, startX)), // Clamp X
+          y: startY,
+          width: 16, // Diamond dimensions
+          height: 20,
+          color: "#ffff00", // Yellow diamond
+          value: 15 + Math.floor(Math.random() * 10), // Slightly higher value
+          angle: Math.random() * Math.PI * 2,
+          rotationSpeed: (Math.random() - 0.5) * 0.1, // Radians per frame (adjust speed later)
+          dy: 0.5, // Initial falling speed
+          targetY: stopY,
+          isFalling: true,
+        })
+      }
+    }
+
+    const generateRescueDivers = (count: number) => {
+        for (let i = 0; i < count; i++) {
+            game.rescueDivers.push({
+                x: Math.random() * canvas.width,
+                y: 150 + Math.random() * (canvas.height - 300),
+                width: 25, height: 15, color: "#ff6347",
+                offset: Math.random() * Math.PI * 2, dx: (Math.random() - 0.5) * 1.5,
+            })
+        }
+    }
+    const generateEnemies = (count: number) => {
+        for (let i = 0; i < count; i++) {
+            const size = 28 + Math.random() * 15;
+            const startY = 50 + Math.random() * (canvas.height - 150);
+            game.enemies.push({
+                x: Math.random() < 0.5 ? -size : canvas.width + size, y: startY, baseY: startY,
+                width: size, height: size * 0.6,
+                color: `hsl(${Math.random() * 60 + 180}, 70%, 60%)`,
+                dx: (Math.random() * 1.5 + 1) * (Math.random() < 0.5 ? 1 : -1),
+                amplitude: 5 + Math.random() * 15, frequency: 0.001 + Math.random() * 0.003,
+                offsetY: Math.random() * Math.PI * 2,
+            })
+        }
+    }
+    const generateOxygenBubbles = (count: number) => {
+        for (let i = 0; i < count; i++) {
+            const radius = 10 + Math.random() * 10;
+            game.oxygenBubbles.push({
+                x: Math.random() * canvas.width, y: canvas.height + radius, radius: radius,
+                speed: 1 + Math.random() * 1.5, color: "rgba(255, 255, 255, 0.7)",
+                oxygenAmount: 10 + Math.random() * 15, offset: Math.random() * Math.PI * 2, isLarge: false,
+            })
+        }
+    }
+    const generateLargeOxygenBubble = () => {
+        const radius = 25 + Math.random() * 10;
+        game.oxygenBubbles.push({
+            x: Math.random() * canvas.width, y: canvas.height + radius, radius: radius,
+            speed: 0.7 + Math.random() * 0.8, color: "rgba(100, 200, 255, 0.8)",
+            oxygenAmount: 40 + Math.random() * 20, offset: Math.random() * Math.PI * 2, isLarge: true, pulse: 0,
+        })
+    }
+
+    // --- Particle Explosion Function ---
+    const createExplosion = (x: number, y: number, color: string) => {
+        if (!game) return;
+        const particleCount = 10 + Math.floor(Math.random() * 10); // 10-19 particles
+        for (let i = 0; i < particleCount; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 1 + Math.random() * 3;
+            const radius = 1 + Math.random() * 2;
+            game.particles.push({
+                x: x,
+                y: y,
+                dx: Math.cos(angle) * speed,
+                dy: Math.sin(angle) * speed,
+                radius: radius,
+                color: color, // Use enemy color initially
+                lifespan: PARTICLE_LIFESPAN,
+                initialLifespan: PARTICLE_LIFESPAN,
+            });
+        }
+    }
+
+    // --- Initialization ---
+    const init = () => {
+        console.log("Initializing game...");
+        if (!game) return;
+        game.gameStarted = true; game.gameOver = false; game.score = 0;
+        game.oxygen = MAX_OXYGEN; game.level = 1; game.lastUpdateTime = performance.now();
+        // Reset diver
+        game.diver.x = canvas.width / 2; game.diver.y = canvas.height / 2;
+        game.diver.dx = 0; game.diver.dy = 0; game.diver.size = 1;
+        game.diver.width = 30; game.diver.height = 20; game.diver.speed = game.diver.baseSpeed;
+        game.diver.oxygenDepletionRate = 0.05; game.diver.canFire = true; game.diver.weaponCooldown = 0;
+        game.diver.weaponCooldownMax = 30; game.diver.facingDirection = 'right';
+        game.diver.comboCounter = 0; game.diver.comboTimer = 0;
+        game.diver.isShieldActive = false; game.diver.shieldTimer = 0;
+        // Clear arrays
+        game.treasures = []; game.rescueDivers = []; game.enemies = [];
+        game.oxygenBubbles = []; game.harpoons = []; game.particles = []; // Clear particles
+        // Generate initial objects
+        generateRescueDivers(2); generateEnemies(3); generateOxygenBubbles(2); generateLargeOxygenBubble();
+        // Start loop
+        if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+        game.animationFrameId = requestAnimationFrame(gameLoop);
+        setUiGameState("playing"); setFinalScore(0);
+    }
+
+    // --- Collision Detection ---
+    const isColliding = (obj1: GameObject, obj2: GameObject): boolean => { /* ... (no change) ... */
+        return (
+            obj1.x < obj2.x + obj2.width &&
+            obj1.x + obj1.width > obj2.x &&
+            obj1.y < obj2.y + obj2.height &&
+            obj1.y + obj1.height > obj2.y
+        )
+     }
+    const isCollidingCircle = (obj: GameObject, circle: OxygenBubble): boolean => { /* ... (no change) ... */
+        const closestX = Math.max(obj.x, Math.min(circle.x, obj.x + obj.width))
+        const closestY = Math.max(obj.y, Math.min(circle.y, obj.y + obj.height))
+        const distanceX = circle.x - closestX
+        const distanceY = circle.y - closestY
+        const distanceSquared = distanceX * distanceX + distanceY * distanceY
+        return distanceSquared < circle.radius * circle.radius
+     }
+
+    // --- Update Functions ---
+    const updateDiver = (deltaTime: number) => {
+        if (!game) return;
+        const scaleFactor = deltaTime / (1000 / 60);
+        // Apply buoyancy
+        game.diver.dy -= 0.02 * scaleFactor;
+        // Update horizontal velocity and facing direction
+        if (game.keys.ArrowRight) { game.diver.dx = game.diver.speed; game.diver.facingDirection = 'right'; }
+        else if (game.keys.ArrowLeft) { game.diver.dx = -game.diver.speed; game.diver.facingDirection = 'left'; }
+        else { game.diver.dx *= Math.pow(0.9, scaleFactor); }
+        // Update vertical velocity
+        if (game.keys.ArrowDown) { game.diver.dy = game.diver.speed; }
+        else if (game.keys.ArrowUp) { game.diver.dy = -game.diver.speed; }
+        else { game.diver.dy *= Math.pow(0.9, scaleFactor); }
+        // Update position
+        game.diver.x += game.diver.dx * scaleFactor;
+        game.diver.y += game.diver.dy * scaleFactor;
+        // Keep diver within bounds
+        game.diver.x = Math.max(0, Math.min(canvas.width - game.diver.width, game.diver.x));
+        game.diver.y = Math.max(0, Math.min(canvas.height - game.diver.height, game.diver.y));
+        // Update combo timer
+        if (game.diver.comboTimer > 0) {
+            game.diver.comboTimer -= scaleFactor;
+            if (game.diver.comboTimer <= 0) { game.diver.comboCounter = 0; game.diver.comboTimer = 0; }
+        }
+        // Update Shield Timer (placeholder)
+        if(game.diver.shieldTimer > 0) {
+            game.diver.shieldTimer -= scaleFactor;
+            if(game.diver.shieldTimer <= 0) game.diver.isShieldActive = false;
+        }
+    }
+
+    const updateWeaponSystem = (deltaTime: number) => {
+        if (!game) return;
+        const scaleFactor = deltaTime / (1000 / 60);
+
+        // Cooldown logic
+        let canFireNow = false;
+        if (game.diver.weaponCooldown > 0) {
+            game.diver.weaponCooldown -= scaleFactor;
+            game.diver.canFire = false;
+             // Rapid Fire Check: Allow firing early if space is held and cooldown is below threshold
+            if (game.keys.Space && game.diver.weaponCooldown <= game.diver.weaponCooldownMax * (1 - RAPID_FIRE_THRESHOLD_FACTOR)) {
+                 canFireNow = true; // Allow firing even if cooldown > 0
+            }
+        } else {
+            game.diver.canFire = true;
+            game.diver.weaponCooldown = 0;
+            canFireNow = true; // Can fire if cooldown is 0
+        }
+
+
+        // Firing logic
+        if (game.keys.Space && canFireNow && game.gameStarted) {
+            const speed = 8;
+            let fireDx = 0; let fireAngle = 0; let startX = 0;
+
+            if (game.diver.facingDirection === 'right') {
+                fireDx = speed; fireAngle = 0; startX = game.diver.x + game.diver.width;
+            } else {
+                fireDx = -speed; fireAngle = Math.PI; startX = game.diver.x;
+            }
+
+            game.harpoons.push({
+                x: startX, y: game.diver.y + game.diver.height / 2,
+                dx: fireDx, dy: 0, length: 20, width: 2, angle: fireAngle, lifespan: 60,
+            })
+
+            // Reset cooldown - potentially slightly shorter if space was held? (optional)
+            game.diver.weaponCooldown = game.diver.weaponCooldownMax;
+            game.diver.canFire = false; // Prevent immediate refire in the same frame
+        }
+    }
+
+    const updateTreasures = (deltaTime: number) => {
+        if (!game) return;
+        const scaleFactor = deltaTime / (1000 / 60);
+
+        for (let i = game.treasures.length - 1; i >= 0; i--) {
+            const treasure = game.treasures[i];
+
+            // Update rotation
+            treasure.angle += treasure.rotationSpeed * scaleFactor;
+
+            // Update falling
+            if (treasure.isFalling) {
+                treasure.dy += GRAVITY * scaleFactor; // Apply gravity
+                treasure.dy = Math.min(treasure.dy, 3); // Terminal velocity
+                treasure.y += treasure.dy * scaleFactor;
+
+                // Stop falling if reached target Y
+                if (treasure.y >= treasure.targetY) {
+                    treasure.y = treasure.targetY;
+                    treasure.isFalling = false;
+                    treasure.dy = 0;
+                    treasure.rotationSpeed *= 0.5; // Slow down rotation when landed
+                }
+            }
+             // Optional: Add slight bobbing when not falling
+             else {
+                 treasure.y += Math.sin(Date.now() * 0.002 + treasure.angle) * 0.1 * scaleFactor;
+             }
+        }
+    }
+
+    const updateParticles = (deltaTime: number) => {
+        if (!game) return;
+        const scaleFactor = deltaTime / (1000 / 60);
+
+        for (let i = game.particles.length - 1; i >= 0; i--) {
+            const p = game.particles[i];
+            p.x += p.dx * scaleFactor;
+            p.y += p.dy * scaleFactor;
+            p.dy += GRAVITY * 0.5 * scaleFactor; // Particles affected slightly by gravity
+            p.lifespan -= scaleFactor; // Decrease lifespan based on time
+
+            // Apply friction/drag
+            p.dx *= Math.pow(0.98, scaleFactor);
+            p.dy *= Math.pow(0.98, scaleFactor);
+
+
+            if (p.lifespan <= 0) {
+                game.particles.splice(i, 1);
+            }
+        }
+    }
+
+
+    const updateGameObjects = (deltaTime: number) => {
+        if (!game) return;
+        const scaleFactor = deltaTime / (1000 / 60);
+        const now = Date.now();
+
+        // Move enemies
+        for (let i = game.enemies.length - 1; i >= 0; i--) {
+            const enemy = game.enemies[i];
+            enemy.x += enemy.dx * scaleFactor;
+            // Apply sinusoidal motion + slight buoyancy
+            enemy.y = enemy.baseY + Math.sin(now * enemy.frequency + enemy.offsetY) * enemy.amplitude;
+            enemy.y -= 0.1 * scaleFactor; // Add slight upward drift (buoyancy)
+            enemy.baseY -= 0.02 * scaleFactor; // Make the center of oscillation drift up slowly too
+
+            // Keep fish within vertical bounds
+            enemy.y = Math.max(10, Math.min(canvas.height - enemy.height - 10, enemy.y));
+             enemy.baseY = Math.max(10 + enemy.amplitude, Math.min(canvas.height - enemy.height - 10 - enemy.amplitude, enemy.baseY)); // Clamp baseY
+
+
+            // Remove/respawn if off-screen
+            if ((enemy.dx > 0 && enemy.x > canvas.width + enemy.width) || (enemy.dx < 0 && enemy.x < -enemy.width * 2)) {
+                 game.enemies.splice(i, 1); generateEnemies(1);
+             }
+        }
+
+        // Move rescue divers
+        game.rescueDivers.forEach((rDiver) => {
+            rDiver.y += Math.sin(now * 0.001 + rDiver.offset) * 0.5 * scaleFactor;
+            rDiver.x += rDiver.dx * scaleFactor;
+            if (rDiver.x < -rDiver.width) rDiver.x = canvas.width
+            else if (rDiver.x > canvas.width) rDiver.x = -rDiver.width
+        })
+
+        // Move oxygen bubbles
+        for (let i = game.oxygenBubbles.length - 1; i >= 0; i--) {
+            const bubble = game.oxygenBubbles[i]
+            bubble.y -= bubble.speed * scaleFactor;
+            bubble.x += Math.sin(now * 0.002 + bubble.offset) * 0.5 * scaleFactor;
+            if (bubble.y < -bubble.radius * 2) {
+                const isLarge = bubble.isLarge; game.oxygenBubbles.splice(i, 1)
+                if (!isLarge) generateOxygenBubbles(1)
+            }
+        }
+    }
+
+    const updateHarpoons = (deltaTime: number) => { /* ... (no change) ... */
+        if (!game) return;
+        const scaleFactor = deltaTime / (1000 / 60);
+
+        for (let i = game.harpoons.length - 1; i >= 0; i--) {
+            const harpoon = game.harpoons[i]
+            harpoon.x += harpoon.dx * scaleFactor;
+            // harpoon.y += harpoon.dy * scaleFactor; // dy is 0
+
+            // Lifespan still frame-based for simplicity
+            harpoon.lifespan--;
+            if (
+                harpoon.lifespan <= 0 ||
+                harpoon.x < -harpoon.length || harpoon.x > canvas.width + harpoon.length || // Allow going slightly offscreen
+                harpoon.y < 0 || harpoon.y > canvas.height
+            ) {
+                game.harpoons.splice(i, 1)
+            }
+        }
+     }
+
+    const checkCollisions = () => {
+        if (!game) return;
+        // Check treasure collisions
+        for (let i = game.treasures.length - 1; i >= 0; i--) {
+            // Use a smaller hitbox for the diamond center
+             const diamondCenterX = game.treasures[i].x + game.treasures[i].width / 2;
+             const diamondCenterY = game.treasures[i].y + game.treasures[i].height / 2;
+             const diverCenterX = game.diver.x + game.diver.width / 2;
+             const diverCenterY = game.diver.y + game.diver.height / 2;
+             const dx = diamondCenterX - diverCenterX;
+             const dy = diamondCenterY - diverCenterY;
+             const distSq = dx*dx + dy*dy;
+             const collideDist = (game.diver.width + game.treasures[i].width) / 2.5; // Adjust sensitivity
+
+            if (distSq < collideDist * collideDist) {
+            // if (isColliding(game.diver, game.treasures[i])) { // Original rect collision
+                game.score += game.treasures[i].value;
+                game.treasures.splice(i, 1);
+            }
+        }
+        // Check rescue diver collisions
+        for (let i = game.rescueDivers.length - 1; i >= 0; i--) {
+            if (isColliding(game.diver, game.rescueDivers[i])) {
+                game.score += 50; game.rescueDivers.splice(i, 1); generateRescueDivers(1);
+            }
+        }
+        // Check enemy collisions with diver (Check Shield)
+        if (!game.diver.isShieldActive) { // Only check if shield is OFF
+             for (let i = game.enemies.length - 1; i >= 0; i--) {
+                if (isColliding(game.diver, game.enemies[i])) {
+                    endGame(); return;
+                }
+            }
+        }
+        // Check oxygen bubble collisions
+        for (let i = game.oxygenBubbles.length - 1; i >= 0; i--) {
+            const bubble = game.oxygenBubbles[i];
+            if (isCollidingCircle(game.diver, bubble)) {
+                game.oxygen = Math.min(MAX_OXYGEN, game.oxygen + bubble.oxygenAmount);
+                const isLarge = bubble.isLarge; game.oxygenBubbles.splice(i, 1);
+                if (!isLarge) { generateOxygenBubbles(1); }
+                else { setTimeout(generateLargeOxygenBubble, 10000); }
+            }
+        }
+        // Check harpoon collisions with enemies
+        for (let i = game.harpoons.length - 1; i >= 0; i--) {
+            const harpoon = game.harpoons[i];
+            for (let j = game.enemies.length - 1; j >= 0; j--) {
+                const enemy = game.enemies[j];
+                const tipX = harpoon.x; const tipY = harpoon.y;
+                if (tipX >= enemy.x && tipX <= enemy.x + enemy.width && tipY >= enemy.y && tipY <= enemy.y + enemy.height) {
+                    const enemyPosition = { x: enemy.x + enemy.width / 2, y: enemy.y + enemy.height / 2 }; // Center position
+                    const enemyColor = enemy.color; // Store color for explosion
+                    createExplosion(enemyPosition.x, enemyPosition.y, enemyColor); // Create explosion
+                    game.enemies.splice(j, 1);
+                    game.harpoons.splice(i, 1);
+                    // Combo Logic
+                    game.diver.comboCounter++; game.diver.comboTimer = COMBO_TIMEOUT_FRAMES;
+                    const baseScore = 30; const comboBonus = (game.diver.comboCounter - 1) * 10;
+                    game.score += baseScore + comboBonus;
+                    // Generate replacement and treasure
+                    generateEnemies(1);
+                    generateTreasures(1, enemyPosition); // Generate falling treasure
+                    break; // Harpoon gone
+                }
+            }
+        }
+    }
+
+
+    const depleteOxygen = (deltaTime: number) => { /* ... (no change) ... */
+        if (!game) return;
+        const scaleFactor = deltaTime / (1000 / 60);
+
+        let currentDepletionRate = game.diver.oxygenDepletionRate;
+        // Increase depletion if moving
+        if (Math.abs(game.diver.dx) > 0.1 || Math.abs(game.diver.dy) > 0.1) {
+             currentDepletionRate *= 1.3; // 30% faster when moving significantly
+        }
+
+        game.oxygen -= currentDepletionRate * scaleFactor;
+
+        if (game.oxygen <= 0) {
+            game.oxygen = 0
+            endGame()
+        }
+     }
+    const checkLevelProgression = () => { /* ... (no change) ... */
+        if (!game) return;
+        const newLevel = Math.floor(game.score / 200) + 1 // Level up every 200 points
+        if (newLevel > game.level) {
+            game.level = newLevel
+            game.diver.oxygenDepletionRate += 0.005 // Slightly increase base depletion
+            generateEnemies(1) // Add another enemy
+            if (game.level % 2 === 0) generateRescueDivers(1) // Add rescue diver every 2 levels
+            if (game.level % 3 === 0 && game.diver.weaponCooldownMax > 15) {
+                game.diver.weaponCooldownMax -= 2 // Slightly faster firing at higher levels
+            }
+            console.log("Level Up!", game.level);
+            // Could add a visual/audio cue for level up here
+        }
+     }
+    const endGame = () => { /* ... (no change) ... */
+        console.log("Game Over!");
+        if (!game) return; // Should not happen
+        game.gameOver = true
+        game.gameStarted = false
+        setFinalScore(game.score)
+        setUiGameState("over")
+        if (game.animationFrameId) {
+            cancelAnimationFrame(game.animationFrameId)
+            game.animationFrameId = null;
+        }
+     }
+
+    // --- Drawing Functions ---
+    const drawBackground = () => { /* ... (no change) ... */
+        if (!ctx) return;
+        const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height)
+        gradient.addColorStop(0, "#001f3f") // Darker blue top
+        gradient.addColorStop(0.8, "#003366") // Lighter blue bottom
+        gradient.addColorStop(1, "#002a50")   // Darkest floor
+        ctx.fillStyle = gradient
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+        // Draw subtle background elements (e.g., distant seaweed/coral)
+        ctx.fillStyle = "rgba(0, 80, 80, 0.3)"; // Dark teal
+        for(let i=0; i<5; i++){
+            ctx.beginPath();
+            ctx.moveTo(i * 150 + 50, canvas.height);
+            ctx.lineTo(i * 150 + 60, canvas.height - 30 - Math.random()*20);
+            ctx.lineTo(i * 150 + 70, canvas.height);
+            ctx.fill();
+        }
+
+        // Draw background bubbles (unchanged)
+        ctx.fillStyle = "rgba(255, 255, 255, 0.1)";
+        for (let i = 0; i < 15; i++) {
+            const x = (Math.sin(Date.now() * 0.0005 + i * 2) + 1) * (canvas.width / 2);
+            const y = ((Date.now() * 0.02 + i * 100) % (canvas.height + 50)) - 50;
+            const radius = 1 + Math.random() * 2;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+     }
+
+    const drawParticles = () => {
+        if (!ctx || !game) return;
+        game.particles.forEach(p => {
+            const alpha = p.lifespan / p.initialLifespan; // Fade out
+            ctx.fillStyle = `rgba(255, 255, 224, ${Math.max(0, alpha * 0.8)})`; // Light yellow, fading
+            // Use enemy color? ctx.fillStyle = `${p.color}${Math.round(alpha * 255).toString(16).padStart(2, '0')}`;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.radius * alpha, 0, Math.PI * 2); // Shrink as they fade
+            ctx.fill();
+        });
+    }
+
+    const drawGameObjects = () => {
+        if (!ctx || !game) return;
+        // Draw treasures (Diamonds)
+        game.treasures.forEach((treasure) => {
+            ctx.save();
+            ctx.translate(treasure.x + treasure.width / 2, treasure.y + treasure.height / 2);
+            ctx.rotate(treasure.angle);
+
+            // Draw Diamond Shape
+            ctx.fillStyle = treasure.color;
+            ctx.beginPath();
+            ctx.moveTo(0, -treasure.height / 2); // Top point
+            ctx.lineTo(treasure.width / 2, 0);    // Right point
+            ctx.lineTo(0, treasure.height / 2);   // Bottom point
+            ctx.lineTo(-treasure.width / 2, 0);   // Left point
+            ctx.closePath();
+            ctx.fill();
+
+            // Add a smaller inner facet for shine
+            ctx.fillStyle = "rgba(255, 255, 255, 0.7)"; // White shine
+            ctx.beginPath();
+            ctx.moveTo(0, -treasure.height / 4);
+            ctx.lineTo(treasure.width / 4, 0);
+            ctx.lineTo(0, treasure.height / 4);
+            ctx.lineTo(-treasure.width / 4, 0);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.restore();
+        })
+
+        // Draw rescue divers (unchanged)
+        game.rescueDivers.forEach((rDiver) => { /* ... */
+            ctx.fillStyle = rDiver.color
+            ctx.fillRect(rDiver.x, rDiver.y, rDiver.width, rDiver.height)
+            // Bubbles
+            if (Math.random() < 0.05) {
+                ctx.fillStyle = "rgba(255, 255, 255, 0.6)"
+                ctx.beginPath()
+                ctx.arc(rDiver.x + rDiver.width / 4, rDiver.y - 3, 2, 0, Math.PI * 2)
+                ctx.fill()
+            }
+         })
+
+        // Draw enemies (unchanged)
+        game.enemies.forEach((enemy) => { /* ... */
+            ctx.save()
+            // Translate to center for rotation/scaling
+            ctx.translate(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2)
+            // Flip horizontally if moving left
+            if (enemy.dx < 0) {
+                ctx.scale(-1, 1)
+            }
+            const bodyWidth = enemy.width * 0.8
+            const bodyHeight = enemy.height
+            const tailWidth = enemy.width * 0.3
+            const tailHeight = enemy.height * 1.2
+
+            // Draw Body (ellipse)
+            ctx.fillStyle = enemy.color
+            ctx.beginPath()
+            ctx.ellipse(0, 0, bodyWidth / 2, bodyHeight / 2, 0, 0, Math.PI * 2)
+            ctx.fill()
+
+            // Draw Tail (triangle) - animate slightly
+            const tailSway = Math.sin(Date.now() * 0.005) * (tailHeight / 4);
+            ctx.beginPath()
+            ctx.moveTo(-bodyWidth / 2, 0) // Connects to back of body
+            ctx.lineTo(-bodyWidth / 2 - tailWidth, -tailHeight / 2 + tailSway)
+            ctx.lineTo(-bodyWidth / 2 - tailWidth, tailHeight / 2 + tailSway)
+            ctx.closePath()
+            ctx.fill()
+
+            // Draw Eye
+            ctx.fillStyle = "white"
+            ctx.beginPath()
+            ctx.arc(bodyWidth * 0.25, -bodyHeight * 0.1, bodyWidth * 0.1, 0, Math.PI * 2)
+            ctx.fill()
+            ctx.fillStyle = "black"
+            ctx.beginPath()
+            ctx.arc(bodyWidth * 0.28, -bodyHeight * 0.1, bodyWidth * 0.05, 0, Math.PI * 2) // Pupil slightly forward
+            ctx.fill()
+
+            ctx.restore() // Restore context after drawing fish
+         })
+
+        // Draw oxygen bubbles (unchanged)
+         game.oxygenBubbles.forEach((bubble) => { /* ... */
+            if (bubble.isLarge) {
+                bubble.pulse = ((bubble.pulse || 0) + 0.05) % (Math.PI * 2)
+                const pulseFactor = 1 + Math.sin(bubble.pulse) * 0.05
+                const gradient = ctx.createRadialGradient(bubble.x, bubble.y, 0, bubble.x, bubble.y, bubble.radius * pulseFactor)
+                gradient.addColorStop(0, "rgba(150, 220, 255, 0.9)")
+                gradient.addColorStop(1, "rgba(100, 200, 255, 0.7)")
+                ctx.fillStyle = gradient
+                ctx.beginPath()
+                ctx.arc(bubble.x, bubble.y, bubble.radius * pulseFactor, 0, Math.PI * 2)
+                ctx.fill()
+                ctx.fillStyle = "rgba(255, 255, 255, 0.6)"
+                ctx.beginPath()
+                ctx.arc(bubble.x - bubble.radius * 0.3, bubble.y - bubble.radius * 0.3, bubble.radius * 0.3, 0, Math.PI / 2)
+                ctx.fill()
+                ctx.fillStyle = "#ffffff"
+                ctx.font = `bold ${bubble.radius * 0.7}px Arial`
+                ctx.textAlign = "center"
+                ctx.textBaseline = "middle"
+                ctx.fillText("O₂", bubble.x, bubble.y + 2)
+            } else {
+                ctx.fillStyle = bubble.color
+                ctx.beginPath()
+                ctx.arc(bubble.x, bubble.y, bubble.radius, 0, Math.PI * 2)
+                ctx.fill()
+                ctx.fillStyle = "rgba(255, 255, 255, 0.4)"
+                ctx.beginPath()
+                ctx.arc(bubble.x - bubble.radius * 0.3, bubble.y - bubble.radius * 0.3, bubble.radius * 0.3, 0, Math.PI / 2)
+                ctx.fill()
+            }
+          })
+    }
+
+    const drawHarpoons = () => { /* ... (no change) ... */
+        if (!ctx || !game) return;
+        game.harpoons.forEach((harpoon) => {
+            ctx.save()
+            ctx.translate(harpoon.x, harpoon.y)
+            // Rotate only if facing left
+            if (harpoon.angle === Math.PI) {
+                 ctx.rotate(Math.PI);
+            }
+
+            // Draw harpoon line (always drawn rightward relative to rotation)
+            ctx.strokeStyle = "#dddddd"
+            ctx.lineWidth = harpoon.width
+            ctx.beginPath()
+            ctx.moveTo(0, 0) // Start at harpoon's origin (which is translated)
+            ctx.lineTo(harpoon.length, 0) // Draw relative right
+            ctx.stroke()
+
+            // Draw harpoon head (relative right)
+            ctx.fillStyle = "#cccccc"
+            ctx.beginPath()
+            ctx.moveTo(harpoon.length, 0) // Tip
+            ctx.lineTo(harpoon.length - 5, -3) // Barb
+            ctx.lineTo(harpoon.length - 3, 0) // Indent
+            ctx.lineTo(harpoon.length - 5, 3) // Barb
+            ctx.closePath()
+            ctx.fill()
+
+            ctx.restore()
+        })
+     }
+    const drawDiver = () => { /* ... (no change, check shield drawing placeholder) ... */
+        if (!ctx || !game) return;
+        ctx.save()
+        ctx.translate(game.diver.x + game.diver.width / 2, game.diver.y + game.diver.height / 2)
+
+        // Flip context if facing left
+        if (game.diver.facingDirection === 'left') {
+            ctx.scale(-1, 1);
+        }
+
+        // --- Draw diver elements (always drawn as if facing right) ---
+        const bodyWidth = game.diver.width
+        const bodyHeight = game.diver.height
+
+        // Body
+        ctx.fillStyle = game.diver.color
+        ctx.fillRect(-bodyWidth / 2, -bodyHeight / 2, bodyWidth, bodyHeight)
+
+        // Fins (at the relative back - left side when facing right)
+        ctx.fillStyle = "#006699"
+        ctx.beginPath()
+        ctx.moveTo(-bodyWidth / 2, -bodyHeight / 4)
+        ctx.lineTo(-bodyWidth / 2 - 10, -bodyHeight / 2 - 2)
+        ctx.lineTo(-bodyWidth / 2 - 10, bodyHeight / 2 + 2)
+        ctx.lineTo(-bodyWidth / 2, bodyHeight / 4)
+        ctx.closePath()
+        ctx.fill()
+
+        // Mask (at the relative front - right side when facing right)
+        ctx.fillStyle = "black"
+        ctx.beginPath()
+        ctx.ellipse(bodyWidth / 2 - 5, 0, bodyWidth * 0.15, bodyHeight * 0.3, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.fillStyle = "rgba(200, 200, 255, 0.5)" // Highlight
+        ctx.beginPath()
+        ctx.ellipse(bodyWidth / 2 - 5, 0, bodyWidth * 0.1, bodyHeight * 0.2, 0, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Tank (on relative top/back)
+        ctx.fillStyle = "#aaaaaa";
+        ctx.fillRect(-bodyWidth * 0.3, -bodyHeight * 0.7, bodyWidth * 0.6, bodyHeight * 0.4);
+
+        // Weapon (relative front/bottom)
+        ctx.fillStyle = "#666666"
+        ctx.fillRect(bodyWidth * 0.1, bodyHeight * 0.2, bodyWidth * 0.5, bodyHeight * 0.25)
+
+        // Bubbles (from relative back/tank area)
+        if (Math.random() < 0.15) {
+            ctx.fillStyle = "rgba(255, 255, 255, 0.7)"
+            const bubbleCount = 1 + Math.floor(Math.random() * 2)
+            for (let i = 0; i < bubbleCount; i++) {
+                const bubbleSize = 1 + Math.random() * 3
+                // Relative back position
+                const offsetX = -bodyWidth / 2 - Math.random() * 5
+                const offsetY = -bodyHeight / 2 + Math.random() * bodyHeight - 5 - Math.random() * 10
+                ctx.beginPath()
+                // Need to adjust bubble position based on facing direction if context is scaled
+                 ctx.arc(offsetX * (game.diver.facingDirection === 'left' ? -1 : 1), offsetY, bubbleSize, 0, Math.PI * 2);
+                ctx.fill()
+            }
+        }
+
+        // Draw Shield Effect (Placeholder)
+        if(game.diver.isShieldActive) {
+            const shieldRadius = Math.max(bodyWidth, bodyHeight) * 0.7;
+            const shieldAlpha = 0.3 + Math.sin(Date.now() * 0.01) * 0.2; // Pulsing alpha
+            ctx.fillStyle = `rgba(0, 200, 255, ${shieldAlpha})`;
+            ctx.beginPath();
+            ctx.arc(0, 0, shieldRadius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+
+        ctx.restore() // Restore context (undo translation and potential scale)
+
+        // Draw weapon cooldown indicator (position relative to top-left, not affected by scale)
+        if (game.diver.weaponCooldown > 0) {
+            const cooldownPercentage = game.diver.weaponCooldown / game.diver.weaponCooldownMax
+            const barWidth = game.diver.width * 0.8
+            const barHeight = 4
+            const barX = game.diver.x + (game.diver.width * 0.1)
+            const barY = game.diver.y - 10
+
+            ctx.fillStyle = "rgba(50, 50, 50, 0.7)"
+            ctx.fillRect(barX, barY, barWidth, barHeight)
+            ctx.fillStyle = "rgba(255, 100, 0, 0.9)"
+            ctx.fillRect(barX, barY, barWidth * (1 - cooldownPercentage), barHeight)
+        }
+     }
+    const drawHUD = () => { /* ... (no change) ... */
+        if (!ctx || !game) return;
+        // Score
+        ctx.fillStyle = "white"
+        ctx.font = "18px 'Press Start 2P', cursive"
+        ctx.textAlign = "left"
+        ctx.textBaseline = "top"
+        ctx.fillText(`Score: ${game.score}`, 20, 20)
+
+        // Level
+        ctx.fillText(`Level: ${game.level}`, 20, 50)
+
+        // Combo Display
+        if (game.diver.comboCounter > 1 && game.diver.comboTimer > 0) {
+             ctx.fillStyle = `rgba(255, 255, 0, ${game.diver.comboTimer / COMBO_TIMEOUT_FRAMES})`; // Fade out yellow
+             ctx.font = "16px 'Press Start 2P', cursive";
+             ctx.textAlign = "center";
+             ctx.fillText(`Combo x${game.diver.comboCounter}!`, canvas.width / 2, 30);
+        }
+
+
+        // Oxygen bar
+        const barWidth = 180
+        const barHeight = 18
+        const barX = canvas.width - barWidth - 20
+        const barY = 20
+
+        ctx.fillStyle = "rgba(0, 0, 0, 0.6)"
+        ctx.strokeStyle = "#00ffff"
+        ctx.lineWidth = 1;
+        ctx.fillRect(barX, barY, barWidth, barHeight)
+        ctx.strokeRect(barX, barY, barWidth, barHeight)
+
+        let oxygenColor
+        const currentOxygenPercent = game.oxygen / MAX_OXYGEN; // Use constant
+
+        if (currentOxygenPercent > 0.6) oxygenColor = "rgba(0, 255, 150, 0.8)"
+        else if (currentOxygenPercent > 0.3) oxygenColor = "rgba(255, 200, 0, 0.8)"
+        else oxygenColor = "rgba(255, 50, 50, 0.8)"
+
+        ctx.fillStyle = oxygenColor
+        const fillWidth = Math.max(0, Math.min(barWidth - 2, (barWidth - 2) * currentOxygenPercent)); // Adjust for border inset
+        ctx.fillRect(barX + 1, barY + 1, fillWidth, barHeight - 2)
+
+        ctx.fillStyle = "white"
+        ctx.font = "12px 'Press Start 2P', cursive"
+        ctx.textAlign = "center"
+        ctx.textBaseline = "middle"
+        ctx.fillText("OXYGEN", barX + barWidth / 2, barY + barHeight / 2 + 1)
+     }
+
+
+    // --- Game Loop ---
+    const gameLoop = (timestamp: number) => {
+        if (!gameInstance.current || gameInstance.current.gameOver) { /* ... cleanup ... */
+             if (gameInstance.current?.animationFrameId) {
+                cancelAnimationFrame(gameInstance.current.animationFrameId);
+                if(gameInstance.current) gameInstance.current.animationFrameId = null;
+            }
+            return;
+         }
+
+        const deltaTime = timestamp - gameInstance.current.lastUpdateTime;
+        gameInstance.current.lastUpdateTime = timestamp;
+        const clampedDeltaTime = Math.min(deltaTime, 50);
+
+        // --- Updates ---
+        updateDiver(clampedDeltaTime);
+        updateWeaponSystem(clampedDeltaTime);
+        updateTreasures(clampedDeltaTime); // Update treasures (falling/rotating)
+        updateGameObjects(clampedDeltaTime);
+        updateHarpoons(clampedDeltaTime);
+        updateParticles(clampedDeltaTime); // Update particles
+        checkCollisions();
+        depleteOxygen(clampedDeltaTime);
+        checkLevelProgression();
+
+        // --- Drawing ---
+        if (!gameInstance.current.gameOver) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBackground();
+            drawGameObjects(); // Draws treasures, enemies, divers, bubbles
+            drawParticles();   // Draw particles on top of background/objects
+            drawHarpoons();
+            drawDiver();       // Draw diver last (or maybe shield needs to be under?)
+            drawHUD();
+            gameInstance.current.animationFrameId = requestAnimationFrame(gameLoop);
+        } else { /* ... cleanup ... */
+              if (gameInstance.current?.animationFrameId) {
+               cancelAnimationFrame(gameInstance.current.animationFrameId);
+               if(gameInstance.current) gameInstance.current.animationFrameId = null;
+           }
+         }
+    }
+
+    // --- Event Listeners ---
+    const handleKeyDown = (e: KeyboardEvent) => { /* ... (no change) ... */
+         if (!gameInstance.current) return;
+      if (e.code in gameInstance.current.keys) {
+        gameInstance.current.keys[e.code] = true;
+        if(e.code === 'Space') e.preventDefault(); // Prevent spacebar scrolling page
+      }
+      if (e.code === "Space" && !gameInstance.current.gameStarted && !gameInstance.current.gameOver) {
+        init(); // Start game
+        e.preventDefault();
+      }
+     }
+    const handleKeyUp = (e: KeyboardEvent) => { /* ... (no change) ... */
+        if (!gameInstance.current) return;
+       if (e.code in gameInstance.current.keys) {
+        gameInstance.current.keys[e.code] = false;
+         if(e.code === 'Space') e.preventDefault();
+      }
+     }
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    // Cleanup
+    return () => { /* ... (no change) ... */
+         console.log("Cleaning up game effect...");
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      if (gameInstance.current?.animationFrameId) {
+        cancelAnimationFrame(gameInstance.current.animationFrameId);
+         if(gameInstance.current) gameInstance.current.animationFrameId = null;
+      }
+     }
+  }, [restartTrigger]);
+
+  // --- JSX ---
+  return (
+    <div className="px-4 py-6 flex flex-col items-center justify-center min-h-screen bg-[#001f3f] text-white font-['Press_Start_2P',_cursive]">
+       {/* Font Load */}
+       <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+       <span style={{ fontFamily: "'Press Start 2P', cursive", position: 'absolute', opacity: 0 }}>.</span>
+
+      <div className="text-center mb-4">
+        <h1 className="text-3xl font-bold mb-2 text-[#00ffff]">Seaquest Adventure</h1>
+        {uiGameState !== 'playing' && ( /* Instructions */
+             <div className="text-sm max-w-lg mx-auto space-y-1">
+               <p>Use ARROW KEYS to move.</p>
+               <p>Press SPACE to fire harpoon (Hold for rapid fire!).</p>
+               <p>Shoot Fish <span className="text-yellow-400">&rarr;</span> Diamonds! Rescue Divers!</p>
+               <p>Grab O₂ bubbles to survive!</p>
+            </div>
+        )}
+      </div>
+
+      <div className="relative w-full max-w-[800px]">
+        <canvas ref={canvasRef} width={800} height={500} className="border-2 border-[#00a8ff] bg-[#002a50] block" />
+        {/* Start Screen */}
+        {uiGameState === "start" && ( /* ... */
+             <div className="absolute inset-0 flex flex-col items-center justify-center bg-[rgba(0,31,63,0.85)] text-center p-4">
+            <h2 className="text-2xl font-bold mb-4 text-[#00ffff]">Ready to Dive?</h2>
+            <p className="mb-6 text-lg">Press SPACEBAR to Start</p>
+            <div className="text-xs space-y-1">
+               <p>ARROW KEYS = Move</p>
+               <p>SPACE = Fire Harpoon</p>
+            </div>
+          </div>
+         )}
+        {/* Game Over Screen */}
+        {uiGameState === "over" && ( /* ... */
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-[rgba(0,31,63,0.85)] text-center p-4">
+            <h2 className="text-3xl font-bold mb-3 text-[#ff4500]">Game Over!</h2>
+            <p className="text-xl mb-6">Final Score: {finalScore}</p>
+            <button
+              onClick={handleRestart}
+              className="px-6 py-3 bg-[#00a8ff] hover:bg-[#0088cc] rounded text-white text-lg font-bold transition-colors duration-200"
+            >
+              Play Again?
+            </button>
+          </div>
+         )}
+      </div>
+       {/* Footer Instructions */}
+       {uiGameState === 'playing' && ( /* ... */
+            <div className="mt-4 text-center text-xs text-gray-400">
+               <p>ARROW KEYS: Move | SPACE: Fire (Hold for faster!)</p>
+            </div>
+        )}
+    </div>
+  )
+}
