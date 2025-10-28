@@ -1971,8 +1971,8 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
     <div className="canvas-container">
       <canvas 
         ref={canvasRef} 
-        width={1408} 
-        height={768}
+        width={1280} 
+        height={720}
         style={{ 
           border: "2px solid #00a8ff",
           backgroundColor: "#000030",
