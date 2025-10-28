@@ -20,7 +20,6 @@ export interface GameImages {
   treasure?: HTMLImageElement;
   oxygen_bubble?: HTMLImageElement;
   oxygen_generator?: HTMLImageElement;
-  diver?: HTMLImageElement;
   hello?: HTMLImageElement;
   
   // UI images
@@ -75,7 +74,6 @@ export function useGameImages(format: ImageFormat = 'svg'): {
       { key: 'treasure', path: getPath('items', 'treasure') },
       { key: 'oxygen_bubble', path: getPath('items', 'oxygen_bubble') },
       { key: 'oxygen_generator', path: getPath('items', 'oxygen_generator') },
-      { key: 'diver', path: getPath('items', 'diver') },
       { key: 'hello', path: getPath('items', 'hello') },
       
       // UI

@@ -124,6 +124,7 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
   const [restartTrigger, setRestartTrigger] = useState(0)
   const [uiGameState, setUiGameState] = useState<"start" | "playing" | "over">("start")
   const [finalScore, setFinalScore] = useState(0)
+  const [finalKillCount, setFinalKillCount] = useState(0)
   // Sound is always on by default
   const soundMuted = false
   
@@ -137,6 +138,7 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
     gameStarted: boolean
     gameOver: boolean
     score: number
+    killCount: number
     oxygen: number
     level: number
     playerLives: number
@@ -200,6 +202,7 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
         gameStarted: false,
         gameOver: false,
         score: 0,
+        killCount: 0,
         oxygen: MAX_OXYGEN,
         level: 1,
         playerLives: 3, // Start with 3 lives
@@ -487,6 +490,7 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
         console.log("Initializing game...");
         if (!game) return;
         game.gameStarted = true; game.gameOver = false; game.score = 0;
+        game.killCount = 0;
         game.oxygen = MAX_OXYGEN; game.level = 1; game.lastUpdateTime = performance.now();
         game.playerLives = 3; // Initialize with 3 lives
         
@@ -519,7 +523,7 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
         // Start loop
         if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
         game.animationFrameId = requestAnimationFrame(gameLoop);
-        setUiGameState("playing"); setFinalScore(0);
+        setUiGameState("playing"); setFinalScore(0); setFinalKillCount(0);
     }
 
     // --- Collision Detection ---
@@ -971,6 +975,7 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
                         
                         // Remove the enemy
                         game.enemies = game.enemies.filter(e => e !== enemy);
+                        game.killCount += 1;
                         
                         // Spawn a new enemy after a delay
                         setTimeout(() => generateEnemies(1), 1000 + Math.random() * 2000);
@@ -1835,19 +1840,20 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
         
         // Level - using Ubuntu Mono font
         ctx.fillText(`LEVEL: ${game.level}`, canvas.width - 10, 40);
+        ctx.fillText(`KILLS: ${game.killCount}`, canvas.width - 10, 60);
         
         // Combo - using Ubuntu Mono font
         if (game.diver.comboCounter > 0) {
             ctx.fillStyle = "#ffff00";
-            ctx.fillText(`COMBO x${game.diver.comboCounter}`, canvas.width - 10, 60);
+            ctx.fillText(`COMBO x${game.diver.comboCounter}`, canvas.width - 10, 80);
         }
         
         // Weapon cooldown indicator - moved to UI corner
             const cooldownPercent = 1 - (game.diver.weaponCooldown / game.diver.weaponCooldownMax);
             const barWidth = 100;
             const barHeight = 8;
-            const barX = canvas.width - 110;
-            const barY = 75;
+            const barX = canvas.width - barWidth - 10;
+            const barY = 95;
             
             // Label
             ctx.fillStyle = "#ffffff";
@@ -1913,6 +1919,7 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
         if (!game) return;
         game.gameOver = true;
         setFinalScore(game.score);
+        setFinalKillCount(game.killCount);
         setUiGameState("over");
     }
 
@@ -2017,6 +2024,7 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
           </div>
           <h2>GAME OVER</h2>
           <p className="score-display">Your Score: {finalScore}</p>
+          <p className="score-display">Enemies Defeated: {finalKillCount}</p>
           <button onClick={handleRestart}>PLAY AGAIN</button>
         </div>
       )}
