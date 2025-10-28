@@ -1704,29 +1704,6 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
             ctx.arc(bubbleX, bubbleY, bubbleSize, 0, Math.PI * 2);
             ctx.fill();
         }
-        
-        // Draw weapon cooldown indicator if not ready
-        if (!game.diver.canFire) {
-            const cooldownPercent = 1 - (game.diver.weaponCooldown / game.diver.weaponCooldownMax);
-            const indicatorWidth = 20;
-            const indicatorHeight = 3;
-            
-            ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-            ctx.fillRect(
-                game.diver.x + game.diver.width/2 - indicatorWidth/2,
-                game.diver.y - 10,
-                indicatorWidth,
-                indicatorHeight
-            );
-            
-            ctx.fillStyle = cooldownPercent > 0.5 ? "#00ff00" : "#ffff00";
-            ctx.fillRect(
-                game.diver.x + game.diver.width/2 - indicatorWidth/2,
-                game.diver.y - 10,
-                indicatorWidth * cooldownPercent,
-                indicatorHeight
-            );
-        }
     }
 
     const drawParticles = () => {
@@ -1863,6 +1840,34 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
         if (game.diver.comboCounter > 0) {
             ctx.fillStyle = "#ffff00";
             ctx.fillText(`COMBO x${game.diver.comboCounter}`, canvas.width - 10, 60);
+        }
+        
+        // Weapon cooldown indicator - moved to UI corner
+        if (!game.diver.canFire) {
+            const cooldownPercent = 1 - (game.diver.weaponCooldown / game.diver.weaponCooldownMax);
+            const barWidth = 100;
+            const barHeight = 8;
+            const barX = canvas.width - 110;
+            const barY = 75;
+            
+            // Label
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "12px 'Ubuntu Mono', monospace";
+            ctx.textAlign = "right";
+            ctx.fillText("WEAPON:", canvas.width - 10, barY + 5);
+            
+            // Background bar
+            ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+            ctx.fillRect(barX, barY + 10, barWidth, barHeight);
+            
+            // Cooldown progress bar
+            ctx.fillStyle = cooldownPercent > 0.5 ? "#00ff00" : "#ffff00";
+            ctx.fillRect(barX, barY + 10, barWidth * cooldownPercent, barHeight);
+            
+            // Border
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 1;
+            ctx.strokeRect(barX, barY + 10, barWidth, barHeight);
         }
         
         // Controls reminder removed as requested
