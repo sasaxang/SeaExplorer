@@ -80,7 +80,7 @@ export function useGameImages(format: ImageFormat = 'svg'): {
       
       // UI
       { key: 'game_logo', path: getPath('ui', 'game_logo') },
-      { key: 'background', path: getPath('ui', 'background') },
+      { key: 'background', path: '/images/background.jpg' },
     ];
     
     console.log(`Loading images in ${format} format...`);
