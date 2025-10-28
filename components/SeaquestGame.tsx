@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react"
 import { useGameImages, drawGameImage, ImageFormat } from '@/components/GameImageLoader'
-import { initSounds, playSound, setMuted, isMuted, playBackgroundMusic } from '@/utils/sounds'
+import { initSounds, playSound, stopSound, setMuted, isMuted, playBackgroundMusic } from '@/utils/sounds'
 
 // --- Interfaces ---
 interface GameObject {
@@ -764,6 +764,9 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
             
             // Check if bonus has reached the surface
             if (bonus.y <= 30) {
+                // Stop the hello sound
+                stopSound('hello');
+                
                 // Bonus reached the surface safely - give player a big oxygen reward
                 game.oxygen = Math.min(MAX_OXYGEN, game.oxygen + bonus.value * 1.5); // 50% extra oxygen for protecting it
                 
@@ -793,6 +796,9 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
             
             // If bonus was hit by an enemy, destroy it
             if (hitByEnemy) {
+                // Stop the hello sound
+                stopSound('hello');
+                
                 // Create explosion effect for the destroyed bonus
                 createExplosion(bonus.x + bonus.width/2, bonus.y + bonus.height/2, "#ff5555");
                 createExplosion(bonus.x + bonus.width/2, bonus.y + bonus.height/2, "#ffaa55");
@@ -803,8 +809,11 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
                 return false; // Remove this bonus
             }
             
-            // Collision with diver - no sound played since already played when spawned
+            // Collision with diver - stop hello sound when collected
             if (isColliding(game.diver, bonus)) {
+                // Stop the hello sound
+                stopSound('hello');
+                
                 // Large oxygen boost
                 game.oxygen = Math.min(MAX_OXYGEN, game.oxygen + bonus.value);
                 
