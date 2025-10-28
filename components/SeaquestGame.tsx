@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react"
 import { useGameImages, drawGameImage, ImageFormat } from '@/components/GameImageLoader'
-import { initSounds, playSound, setMuted, isMuted, playBackgroundMusic } from '@/utils/sounds'
+import { initSounds, playSound, stopSound, setMuted, isMuted, playBackgroundMusic } from '@/utils/sounds'
 
 // --- Interfaces ---
 interface GameObject {
@@ -764,6 +764,9 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
             
             // Check if bonus has reached the surface
             if (bonus.y <= 30) {
+                // Stop the hello sound
+                stopSound('hello');
+                
                 // Bonus reached the surface safely - give player a big oxygen reward
                 game.oxygen = Math.min(MAX_OXYGEN, game.oxygen + bonus.value * 1.5); // 50% extra oxygen for protecting it
                 
@@ -793,6 +796,9 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
             
             // If bonus was hit by an enemy, destroy it
             if (hitByEnemy) {
+                // Stop the hello sound
+                stopSound('hello');
+                
                 // Create explosion effect for the destroyed bonus
                 createExplosion(bonus.x + bonus.width/2, bonus.y + bonus.height/2, "#ff5555");
                 createExplosion(bonus.x + bonus.width/2, bonus.y + bonus.height/2, "#ffaa55");
@@ -803,8 +809,11 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
                 return false; // Remove this bonus
             }
             
-            // Collision with diver - no sound played since already played when spawned
+            // Collision with diver - stop hello sound when collected
             if (isColliding(game.diver, bonus)) {
+                // Stop the hello sound
+                stopSound('hello');
+                
                 // Large oxygen boost
                 game.oxygen = Math.min(MAX_OXYGEN, game.oxygen + bonus.value);
                 
@@ -1695,41 +1704,6 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
             ctx.arc(bubbleX, bubbleY, bubbleSize, 0, Math.PI * 2);
             ctx.fill();
         }
-        
-        // Draw weapon cooldown indicator if not ready
-        if (!game.diver.canFire) {
-            const cooldownPercent = 1 - (game.diver.weaponCooldown / game.diver.weaponCooldownMax);
-            const indicatorWidth = 20;
-            const indicatorHeight = 3;
-            
-            ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-            ctx.fillRect(
-                game.diver.x + game.diver.width/2 - indicatorWidth/2,
-                game.diver.y - 10,
-                indicatorWidth,
-                indicatorHeight
-            );
-            
-            ctx.fillStyle = cooldownPercent > 0.5 ? "#00ff00" : "#ffff00";
-            ctx.fillRect(
-                game.diver.x + game.diver.width/2 - indicatorWidth/2,
-                game.diver.y - 10,
-                indicatorWidth * cooldownPercent,
-                indicatorHeight
-            );
-        }
-        
-        // Draw combo indicator if active
-        if (game.diver.comboCounter > 0) {
-            ctx.fillStyle = "#ffff00";
-            ctx.font = "12px Arial";
-            ctx.textAlign = "center";
-            ctx.fillText(
-                `x${game.diver.comboCounter}`,
-                game.diver.x + game.diver.width/2,
-                game.diver.y - 15
-            );
-        }
     }
 
     const drawParticles = () => {
@@ -1866,6 +1840,34 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
         if (game.diver.comboCounter > 0) {
             ctx.fillStyle = "#ffff00";
             ctx.fillText(`COMBO x${game.diver.comboCounter}`, canvas.width - 10, 60);
+        }
+        
+        // Weapon cooldown indicator - moved to UI corner
+        if (!game.diver.canFire) {
+            const cooldownPercent = 1 - (game.diver.weaponCooldown / game.diver.weaponCooldownMax);
+            const barWidth = 100;
+            const barHeight = 8;
+            const barX = canvas.width - 110;
+            const barY = 75;
+            
+            // Label
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "12px 'Ubuntu Mono', monospace";
+            ctx.textAlign = "right";
+            ctx.fillText("WEAPON:", canvas.width - 10, barY + 5);
+            
+            // Background bar
+            ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+            ctx.fillRect(barX, barY + 10, barWidth, barHeight);
+            
+            // Cooldown progress bar
+            ctx.fillStyle = cooldownPercent > 0.5 ? "#00ff00" : "#ffff00";
+            ctx.fillRect(barX, barY + 10, barWidth * cooldownPercent, barHeight);
+            
+            // Border
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 1;
+            ctx.strokeRect(barX, barY + 10, barWidth, barHeight);
         }
         
         // Controls reminder removed as requested
