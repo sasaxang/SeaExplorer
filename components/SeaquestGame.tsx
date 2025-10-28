@@ -1843,7 +1843,6 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
         }
         
         // Weapon cooldown indicator - moved to UI corner
-        if (!game.diver.canFire) {
             const cooldownPercent = 1 - (game.diver.weaponCooldown / game.diver.weaponCooldownMax);
             const barWidth = 100;
             const barHeight = 8;
@@ -1868,8 +1867,7 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
             ctx.strokeStyle = "#ffffff";
             ctx.lineWidth = 1;
             ctx.strokeRect(barX, barY + 10, barWidth, barHeight);
-        }
-        
+                
         // Controls reminder removed as requested
     }
 
