@@ -32,12 +32,6 @@ Control a submarine through dangerous underwater depths, where you must:
 - **Particle Effects**: For explosions and impacts.
 - **Smooth Animations**: Directional sprites and fluid movement.
 
-### 🔌 Integrations
-- **CrazyGames SDK**:
-    - **Ads**: Rewarded ads for reviving and interstitial ads.
-    - **High Score**: Cloud-based high score saving.
-    - **Gameplay Events**: Tracking for start/stop and happy time.
-
 ### Enemy Types
 - **Fish** (Small): 1 hit to defeat
 - **Fish** (Large): 2 hits to defeat  
@@ -148,7 +142,6 @@ SeaExplorer/
 │   ├── SeaquestGame.tsx       # Main game component and logic
 │   ├── TouchControls.tsx      # Mobile touch controls container
 │   ├── DynamicJoystick.tsx    # Analog joystick component
-│   ├── CrazyGamesSDK.tsx      # SDK initialization wrapper
 │   └── GameImageLoader.tsx    # Image asset loader hook
 ├── public/
 │   ├── images/                # Game sprites
