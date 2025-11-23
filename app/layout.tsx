@@ -1,16 +1,13 @@
 import type { Metadata } from 'next'
-import { Ubuntu_Mono } from 'next/font/google'
+import { Inter } from 'next/font/google'
 import './globals.css'
+import CrazyGamesSDK from '@/components/CrazyGamesSDK'
 
-const ubuntuMono = Ubuntu_Mono({ 
-  weight: ['400', '700'],
-  subsets: ['latin'],
-  display: 'swap',
-})
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Seaquest Game',
-  description: 'A modern implementation of the classic Seaquest game',
+  title: 'Seaquest - Underwater Adventure',
+  description: 'A 2D underwater game inspired by Seaquest',
 }
 
 export default function RootLayout({
@@ -20,7 +17,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={ubuntuMono.className}>{children}</body>
+      <body className={inter.className}>
+        <CrazyGamesSDK />
+        {children}
+      </body>
     </html>
   )
 }
