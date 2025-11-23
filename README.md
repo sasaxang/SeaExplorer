@@ -22,6 +22,22 @@ Control a submarine through dangerous underwater depths, where you must:
 - **Lives System**: Collect hearts to gain extra lives (max 10)
 - **Progressive Difficulty**: Game gets harder with each level
 
+### 📱 Mobile Support
+- **Dynamic Joystick**: Touch anywhere on the left side to spawn a floating joystick for smooth analog control.
+- **Touch Controls**: Optimized fire button and responsive UI.
+- **Responsive Design**: Automatically adjusts to landscape orientation on mobile devices.
+
+### 🎬 Visuals
+- **Video Background**: Immersive underwater video background on the start screen.
+- **Particle Effects**: For explosions and impacts.
+- **Smooth Animations**: Directional sprites and fluid movement.
+
+### 🔌 Integrations
+- **CrazyGames SDK**:
+    - **Ads**: Rewarded ads for reviving and interstitial ads.
+    - **High Score**: Cloud-based high score saving.
+    - **Gameplay Events**: Tracking for start/stop and happy time.
+
 ### Enemy Types
 - **Fish** (Small): 1 hit to defeat
 - **Fish** (Large): 2 hits to defeat  
@@ -69,19 +85,32 @@ npm run dev
 http://localhost:5000
 ```
 
-### Build for Production
+### Build for Production (Firebase Hosting)
 
+This project is configured for static export to Firebase Hosting.
+
+1. Build the project:
 ```bash
 npm run build
-npm start
+```
+
+2. Deploy to Firebase:
+```bash
+npx firebase-tools deploy
 ```
 
 ## 🎯 How to Play
 
 ### Controls
+
+#### Desktop (Keyboard)
 - **Arrow Keys**: Move submarine (Up/Down/Left/Right)
 - **Spacebar**: Fire harpoon
 - **Enter**: Start game / Restart after game over
+
+#### Mobile (Touch)
+- **Left Screen**: Touch and drag to use the **Dynamic Joystick** for movement.
+- **Right Screen**: Tap the **Fire Button** to shoot harpoons.
 
 ### Objective
 1. Navigate through the ocean avoiding or defeating enemies
@@ -105,6 +134,7 @@ npm start
 - **Audio**: Howler.js
 - **Styling**: CSS (with Next.js App Router)
 - **Image Processing**: Sharp (for optimization)
+- **Hosting**: Firebase Hosting
 
 ## 📁 Project Structure
 
@@ -116,23 +146,26 @@ SeaExplorer/
 │   └── globals.css            # Global styles
 ├── components/
 │   ├── SeaquestGame.tsx       # Main game component and logic
-│   ├── GameImageLoader.tsx    # Image asset loader hook
-│   └── ImageIntegrationExample.tsx
+│   ├── TouchControls.tsx      # Mobile touch controls container
+│   ├── DynamicJoystick.tsx    # Analog joystick component
+│   ├── CrazyGamesSDK.tsx      # SDK initialization wrapper
+│   └── GameImageLoader.tsx    # Image asset loader hook
 ├── public/
-│   ├── images/
+│   ├── images/                # Game sprites
 │   │   └── png/               # Game sprites
 │   │       ├── enemies/       # Enemy sprites
 │   │       ├── items/         # Collectible sprites
 │   │       ├── player/        # Submarine sprites
 │   │       └── ui/            # UI assets
 │   ├── sounds/                # Sound effects
-│   └── backgroundmusic.mp3    # Background music
+│   └── start_video.mp4        # Background video
 ├── utils/
 │   ├── sounds.ts              # Sound management
 │   └── sound-generator.js     # Sound utilities
 ├── package.json
 ├── tsconfig.json
-└── next.config.js
+├── next.config.js
+└── firebase.json              # Firebase hosting config
 ```
 
 ## 🎨 Game Mechanics
