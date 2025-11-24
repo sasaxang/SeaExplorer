@@ -23,7 +23,7 @@ Control a submarine through dangerous underwater depths, where you must:
 - **Progressive Difficulty**: Game gets harder with each level
 
 ### 📱 Mobile Support
-- **Dynamic Joystick**: Touch anywhere on the left side to spawn a floating joystick for smooth analog control.
+- **Fixed Joystick**: Touch the joystick in the bottom-left corner for smooth analog control.
 - **Touch Controls**: Optimized fire button and responsive UI.
 - **Responsive Design**: Automatically adjusts to landscape orientation on mobile devices.
 

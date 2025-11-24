@@ -24,6 +24,7 @@
     "typescript": "^5.8.2"
   },
   "devDependencies": {
-    "@types/node": "22.14.0"
+    "@types/node": "22.14.0",
+    "firebase-tools": "^13.35.1"
   }
 }

@@ -84,7 +84,8 @@ export default function TouchControls({ onControlChange }: TouchControlsProps) {
                 position: 'absolute',
                 bottom: '40px',
                 right: '40px',
-                pointerEvents: 'auto'
+                pointerEvents: 'auto',
+                zIndex: 30 // Ensure it's above other layers
             }}>
                 <div
                     style={btnStyle}
