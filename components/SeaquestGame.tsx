@@ -616,8 +616,16 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
 
         // --- Collision Detection ---
         const isColliding = (obj1: GameObject, obj2: GameObject): boolean => {
-            // For sharks, extend the hit detection area by 1 pixel beyond the visible shape
-            const extraMargin = (obj2 as Enemy)?.isShark ? 1 : 0;
+            // For sharks, we need to match the visual scaling (1.7x)
+            let obj2Width = obj2.width;
+            let obj2Height = obj2.height;
+
+            if ((obj2 as Enemy)?.isShark) {
+                obj2Width = obj2.width * 1.7;
+                obj2Height = obj2.height * 1.7;
+            }
+
+            const extraMargin = 1; // Keep the small 1px margin for leniency
 
             // Adjust diver's hitbox to be 10% smaller for better gameplay
             let obj1Width = obj1.width;
@@ -641,9 +649,9 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
             }
 
             return (
-                obj1X < obj2.x + obj2.width + extraMargin &&
+                obj1X < obj2.x + obj2Width + extraMargin &&
                 obj1X + obj1Width > obj2.x - extraMargin &&
-                obj1Y < obj2.y + obj2.height + extraMargin &&
+                obj1Y < obj2.y + obj2Height + extraMargin &&
                 obj1Y + obj1Height > obj2.y - extraMargin
             )
         }
