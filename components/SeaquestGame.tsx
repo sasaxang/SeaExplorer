@@ -1247,7 +1247,7 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
                     // Reset position and oxygen if still have lives
                     game.diver.x = canvas.width / 2;
                     game.diver.y = canvas.height / 2;
-                    game.oxygen = MAX_OXYGEN / 2; // Start with half oxygen on respawn
+                    game.oxygen = MAX_OXYGEN; // Start with full oxygen on respawn
                     game.diver.comboCounter = 0;
                     game.diver.comboTimer = 0;
 
