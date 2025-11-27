@@ -112,7 +112,11 @@ export function playBackgroundMusic() {
   console.log("playBackgroundMusic called");
   if (sounds.backgroundMusic) {
     // Stop start music if playing
-    if (sounds.startMusic) sounds.startMusic.stop();
+    if (sounds.startMusic) {
+      console.log("Stopping start music, current state:", sounds.startMusic.state());
+      sounds.startMusic.stop();
+      console.log("Start music stopped, new state:", sounds.startMusic.state());
+    }
 
     // Stop first in case it's already playing
     sounds.backgroundMusic.stop();
@@ -129,7 +133,11 @@ export function playStartMusic() {
   console.log("playStartMusic called");
   if (sounds.startMusic) {
     // Stop background music if playing
-    if (sounds.backgroundMusic) sounds.backgroundMusic.stop();
+    if (sounds.backgroundMusic) {
+      console.log("Stopping background music, current state:", sounds.backgroundMusic.state());
+      sounds.backgroundMusic.stop();
+      console.log("Background music stopped, new state:", sounds.backgroundMusic.state());
+    }
 
     // Stop first in case it's already playing
     sounds.startMusic.stop();

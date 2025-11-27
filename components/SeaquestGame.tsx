@@ -227,8 +227,10 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
     } | null>(null)
 
     const handleRestart = useCallback(() => {
+        console.log("handleRestart called - returning to start screen");
         setRestartTrigger((prev) => prev + 1)
         setUiGameState("start")
+        playStartMusic() // Play start music when returning to start screen
     }, [])
 
     const initRef = useRef<() => void>(() => { })
@@ -625,7 +627,10 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
                 game.playerLives = 3; // Initialize with 3 lives
 
                 // Start playing background music when the game initializes
-                playBackgroundMusic();
+                // Add a small delay to ensure sounds are fully initialized
+                setTimeout(() => {
+                    playBackgroundMusic();
+                }, 200);
                 // Reset diver
                 game.diver.x = canvas.width / 2; game.diver.y = canvas.height / 2;
                 game.diver.dx = 0; game.diver.dy = 0; game.diver.size = 1;
@@ -667,10 +672,8 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
         // Expose init to ref
         initRef.current = init;
 
-        // Auto-start if restart triggered (except first load if we want start screen)
-        if (restartTrigger > 0) {
-            init();
-        }
+        // Don't auto-start on restart - let user click Start button or press Space
+        // This prevents background music from playing when returning to start screen
 
         // --- Collision Detection ---
         const isColliding = (obj1: GameObject, obj2: GameObject): boolean => {
@@ -2083,6 +2086,9 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
             setFinalScore(game.score);
             setFinalKillCount(game.killCount);
             setUiGameState("over");
+
+            // Stop background music and play start music on game over
+            playStartMusic();
 
             // Notify CrazyGames that gameplay has stopped
             if (window.CrazyGames && window.CrazyGames.SDK) {
