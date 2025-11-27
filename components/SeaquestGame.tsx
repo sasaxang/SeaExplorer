@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react"
 import { useGameImages, drawGameImage, ImageFormat } from '@/components/GameImageLoader'
-import { initSounds, playSound, stopSound, setMuted, isMuted, playBackgroundMusic } from '@/utils/sounds'
+import { initSounds, playSound, stopSound, setMuted, isMuted, playBackgroundMusic, playStartMusic, resumeAudioContext } from '@/utils/sounds'
 import TouchControls from './TouchControls'
 
 // --- Interfaces ---
@@ -133,16 +133,49 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
     // Load game images with the specified format
     const { images, loadingComplete } = useGameImages(imageFormat)
 
+
+
     // Initialize sounds once on mount
     useEffect(() => {
-        try {
-            initSounds();
-        } catch (e) {
-            console.error("Failed to initialize sounds:", e);
-        }
+        let soundsInitialized = false;
+
+        console.log("Sound effect mounted, setting up interaction listeners");
+
+        // Add a one-time listener to initialize and play music on first interaction
+        const handleFirstInteraction = (e: Event) => {
+            console.log("First interaction detected:", e.type);
+            if (!soundsInitialized) {
+                try {
+                    console.log("Initializing sounds...");
+                    initSounds();
+                    soundsInitialized = true;
+                    console.log("Sounds initialized successfully");
+
+                    // Small delay to ensure AudioContext is ready
+                    setTimeout(() => {
+                        console.log("Attempting to resume AudioContext and play start music");
+                        resumeAudioContext();
+                        playStartMusic();
+                    }, 100);
+                } catch (e) {
+                    console.error("Failed to initialize sounds:", e);
+                }
+            }
+
+            window.removeEventListener('click', handleFirstInteraction);
+            window.removeEventListener('keydown', handleFirstInteraction);
+            window.removeEventListener('touchstart', handleFirstInteraction);
+        };
+
+        window.addEventListener('click', handleFirstInteraction);
+        window.addEventListener('keydown', handleFirstInteraction);
+        window.addEventListener('touchstart', handleFirstInteraction);
+
         return () => {
-            // Optional: stop background music on unmount if needed
-            // stopSound('backgroundMusic'); 
+            console.log("Sound effect cleanup");
+            window.removeEventListener('click', handleFirstInteraction);
+            window.removeEventListener('keydown', handleFirstInteraction);
+            window.removeEventListener('touchstart', handleFirstInteraction);
         }
     }, []);
 
@@ -2086,8 +2119,8 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
         const handleKeyDown = (e: KeyboardEvent) => {
             if (!game) return;
 
-            // Start game on any key if on start screen
-            if (!game.gameStarted && !game.gameOver && e.key !== 'F5') {
+            // Start game on Space key if on start screen
+            if (!game.gameStarted && !game.gameOver && e.key === ' ') {
                 init();
                 return;
             }

@@ -10,6 +10,7 @@ const SOUND_URLS = {
   warning: '/sounds/warning.mp3',
   hello: '/sounds/hello.mp3',
   backgroundMusic: '/backgroundmusic.mp3', // Now in the public folder
+  startMusic: '/start_music.mp3', // Start screen music
 };
 
 // Collection of loaded sounds
@@ -68,6 +69,13 @@ export function initSounds() {
     loop: true, // Make the background music loop continuously
     autoplay: false, // We'll manually start it when the game loads
   });
+
+  sounds.startMusic = new Howl({
+    src: [SOUND_URLS.startMusic],
+    volume: 0.4,
+    loop: true,
+    autoplay: false,
+  });
 }
 
 // Play a sound
@@ -101,10 +109,52 @@ export function isMuted(): boolean {
 
 // Play background music
 export function playBackgroundMusic() {
+  console.log("playBackgroundMusic called");
   if (sounds.backgroundMusic) {
+    // Stop start music if playing
+    if (sounds.startMusic) sounds.startMusic.stop();
+
     // Stop first in case it's already playing
     sounds.backgroundMusic.stop();
     // Play and loop continuously
-    sounds.backgroundMusic.play();
+    const playId = sounds.backgroundMusic.play();
+    console.log("Background music play ID:", playId, "State:", sounds.backgroundMusic.state());
+  } else {
+    console.warn("backgroundMusic sound not initialized");
+  }
+}
+
+// Play start screen music
+export function playStartMusic() {
+  console.log("playStartMusic called");
+  if (sounds.startMusic) {
+    // Stop background music if playing
+    if (sounds.backgroundMusic) sounds.backgroundMusic.stop();
+
+    // Stop first in case it's already playing
+    sounds.startMusic.stop();
+    // Play and loop continuously
+    const playId = sounds.startMusic.play();
+    console.log("Start music play ID:", playId, "State:", sounds.startMusic.state());
+  } else {
+    console.warn("startMusic sound not initialized");
+  }
+}
+
+// Explicitly resume AudioContext (helper for autoplay policies)
+export function resumeAudioContext() {
+  console.log("Attempting to resume AudioContext, current state:", Howler.ctx?.state);
+  if (Howler.ctx) {
+    if (Howler.ctx.state === 'suspended') {
+      Howler.ctx.resume().then(() => {
+        console.log("AudioContext resumed successfully, new state:", Howler.ctx?.state);
+      }).catch((err) => {
+        console.error("Failed to resume AudioContext:", err);
+      });
+    } else {
+      console.log("AudioContext already in state:", Howler.ctx.state);
+    }
+  } else {
+    console.warn("Howler.ctx is not available yet");
   }
 }
