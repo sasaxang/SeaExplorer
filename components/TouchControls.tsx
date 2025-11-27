@@ -74,28 +74,33 @@ export default function TouchControls({ onControlChange }: TouchControlsProps) {
         zIndex: 100
     }
 
-    return (
-        <div style={containerStyle}>
-            {/* Dynamic Joystick (Left Half) */}
-            <DynamicJoystick onMove={handleJoystickMove} />
+    try {
+        return (
+            <div style={containerStyle}>
+                {/* Dynamic Joystick (Left Half) */}
+                <DynamicJoystick onMove={handleJoystickMove} />
 
-            {/* Action Button (Right Bottom) */}
-            <div style={{
-                position: 'absolute',
-                bottom: '40px',
-                right: '40px',
-                pointerEvents: 'auto',
-                zIndex: 30 // Ensure it's above other layers
-            }}>
-                <div
-                    style={btnStyle}
-                    onPointerDown={() => onControlChange('Space', true)}
-                    onPointerUp={() => onControlChange('Space', false)}
-                    onPointerLeave={() => onControlChange('Space', false)}
-                >
-                    🔥
+                {/* Action Button (Right Bottom) */}
+                <div style={{
+                    position: 'absolute',
+                    bottom: '40px',
+                    right: '40px',
+                    pointerEvents: 'auto',
+                    zIndex: 30 // Ensure it's above other layers
+                }}>
+                    <div
+                        style={btnStyle}
+                        onPointerDown={() => onControlChange('Space', true)}
+                        onPointerUp={() => onControlChange('Space', false)}
+                        onPointerLeave={() => onControlChange('Space', false)}
+                    >
+                        🔥
+                    </div>
                 </div>
             </div>
-        </div>
-    )
+        )
+    } catch (e) {
+        console.error("Error rendering TouchControls:", e);
+        return null;
+    }
 }

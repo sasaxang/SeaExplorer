@@ -17,43 +17,51 @@ const sounds: { [key: string]: Howl } = {};
 
 // Initialize sounds
 export function initSounds() {
+  // Cleanup existing sounds first to prevent duplicates/memory leaks
+  Object.keys(sounds).forEach(key => {
+    if (sounds[key]) {
+      sounds[key].stop();
+      sounds[key].unload();
+    }
+  });
+
   // Create Howl instances for each sound
   sounds.explosion = new Howl({
     src: [SOUND_URLS.explosion],
     volume: 0.5,
     pool: 5, // Allow multiple simultaneous playback
   });
-  
+
   sounds.explosionShark = new Howl({
     src: [SOUND_URLS.explosionShark],
     volume: 0.6,
     pool: 3, // Less frequent than regular explosions
   });
-  
+
   sounds.bubble = new Howl({
     src: [SOUND_URLS.bubble],
     volume: 0.3,
     pool: 3,
   });
-  
+
   sounds.hit = new Howl({
     src: [SOUND_URLS.hit],
     volume: 0.4,
     pool: 5,
   });
-  
+
   sounds.warning = new Howl({
     src: [SOUND_URLS.warning],
     volume: 0.7,
     pool: 1, // Only one warning sound at a time
   });
-  
+
   sounds.hello = new Howl({
     src: [SOUND_URLS.hello],
     volume: 0.5,
     pool: 1, // Only one hello sound at a time
   });
-  
+
   sounds.backgroundMusic = new Howl({
     src: [SOUND_URLS.backgroundMusic],
     volume: 0.3,

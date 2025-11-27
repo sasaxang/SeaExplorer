@@ -133,6 +133,19 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
     // Load game images with the specified format
     const { images, loadingComplete } = useGameImages(imageFormat)
 
+    // Initialize sounds once on mount
+    useEffect(() => {
+        try {
+            initSounds();
+        } catch (e) {
+            console.error("Failed to initialize sounds:", e);
+        }
+        return () => {
+            // Optional: stop background music on unmount if needed
+            // stopSound('backgroundMusic'); 
+        }
+    }, []);
+
     // --- Game State Ref ---
     const gameInstance = useRef<{
         ctx: CanvasRenderingContext2D | null
@@ -239,7 +252,8 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
     // --- Main Game Effect Hook ---
     useEffect(() => {
         // Initialize sound effects
-        initSounds();
+        // initSounds(); // Moved to separate useEffect
+
 
         // Load high score from CrazyGames
         if (window.CrazyGames && window.CrazyGames.SDK && window.CrazyGames.SDK.data) {
@@ -321,6 +335,10 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
                 keys: { ArrowRight: false, ArrowLeft: false, ArrowUp: false, ArrowDown: false, Space: false },
                 lastUpdateTime: performance.now(),
             }
+
+            // Clear the canvas immediately to remove the frozen frame from the previous game
+            ctx.fillStyle = "#000030";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
 
         const game = gameInstance.current
@@ -444,6 +462,8 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
             }
         }
         const generateOxygenBubbles = (count: number) => {
+            if (!game || !game.oxygenGenerator) return; // Add check for oxygenGenerator
+
             for (let i = 0; i < count; i++) {
                 // Increase bubble size (from 10-20 to 12-24)
                 const radius = 12 + Math.random() * 12;
@@ -463,6 +483,7 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
             }
         }
         const generateLargeOxygenBubble = () => {
+            if (!game || !game.oxygenGenerator) return; // Add check for oxygenGenerator
             // Increase radius (from 25-35 to 30-45)
             const radius = 30 + Math.random() * 15;
             game.oxygenBubbles.push({
@@ -562,47 +583,51 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
 
         // --- Initialization ---
         const init = () => {
-            console.log("Initializing game...");
-            if (!game) return;
-            game.gameStarted = true; game.gameOver = false; game.score = 0;
-            game.killCount = 0;
-            game.oxygen = MAX_OXYGEN; game.level = 1; game.lastUpdateTime = performance.now();
-            game.playerLives = 3; // Initialize with 3 lives
+            try {
+                console.log("Initializing game...");
+                if (!game) return;
+                game.gameStarted = true; game.gameOver = false; game.score = 0;
+                game.killCount = 0;
+                game.oxygen = MAX_OXYGEN; game.level = 1; game.lastUpdateTime = performance.now();
+                game.playerLives = 3; // Initialize with 3 lives
 
-            // Start playing background music when the game initializes
-            playBackgroundMusic();
-            // Reset diver
-            game.diver.x = canvas.width / 2; game.diver.y = canvas.height / 2;
-            game.diver.dx = 0; game.diver.dy = 0; game.diver.size = 1;
-            game.diver.width = 70; game.diver.height = 47; game.diver.speed = game.diver.baseSpeed;
-            game.diver.oxygenDepletionRate = 0.05; game.diver.canFire = true; game.diver.weaponCooldown = 0;
-            game.diver.weaponCooldownMax = 30; game.diver.facingDirection = 'right';
-            game.diver.comboCounter = 0; game.diver.comboTimer = 0;
-            game.diver.isShieldActive = false; game.diver.shieldTimer = 0;
-            // Clear arrays
-            game.treasures = []; game.enemies = [];
-            game.oxygenBubbles = []; game.harpoons = []; game.particles = [];
-            game.hearts = []; game.crabs = []; // Clear hearts and crabs
-            game.oxygenBonus = []; // Clear oxygen bonus
-            // Reset oxygen generator position
-            game.oxygenGenerator = {
-                x: canvas.width / 2 - 30,
-                y: canvas.height - 60,
-                width: 60,
-                height: 50
-            };
-            // Generate initial objects
-            generateEnemies(3); generateOxygenBubbles(2); generateLargeOxygenBubble();
-            // Initialize a crab on the ocean floor
-            generateCrab();
-            // Start loop
-            if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
-            game.animationFrameId = requestAnimationFrame(gameLoop);
-            setUiGameState("playing"); setFinalScore(0); setFinalKillCount(0);
+                // Start playing background music when the game initializes
+                playBackgroundMusic();
+                // Reset diver
+                game.diver.x = canvas.width / 2; game.diver.y = canvas.height / 2;
+                game.diver.dx = 0; game.diver.dy = 0; game.diver.size = 1;
+                game.diver.width = 70; game.diver.height = 47; game.diver.speed = game.diver.baseSpeed;
+                game.diver.oxygenDepletionRate = 0.05; game.diver.canFire = true; game.diver.weaponCooldown = 0;
+                game.diver.weaponCooldownMax = 30; game.diver.facingDirection = 'right';
+                game.diver.comboCounter = 0; game.diver.comboTimer = 0;
+                game.diver.isShieldActive = false; game.diver.shieldTimer = 0;
+                // Clear arrays
+                game.treasures = []; game.enemies = [];
+                game.oxygenBubbles = []; game.harpoons = []; game.particles = [];
+                game.hearts = []; game.crabs = []; // Clear hearts and crabs
+                game.oxygenBonus = []; // Clear oxygen bonus
+                // Reset oxygen generator position
+                game.oxygenGenerator = {
+                    x: canvas.width / 2 - 30,
+                    y: canvas.height - 60,
+                    width: 60,
+                    height: 50
+                };
+                // Generate initial objects
+                generateEnemies(3); generateOxygenBubbles(2); generateLargeOxygenBubble();
+                // Initialize a crab on the ocean floor
+                generateCrab();
+                // Start loop
+                if (game.animationFrameId) cancelAnimationFrame(game.animationFrameId);
+                game.animationFrameId = requestAnimationFrame(gameLoop);
+                setUiGameState("playing"); setFinalScore(0); setFinalKillCount(0);
 
-            // Notify CrazyGames that gameplay has started
-            if (window.CrazyGames && window.CrazyGames.SDK && window.CrazyGames.SDK.game) {
-                window.CrazyGames.SDK.game.gameplayStart();
+                // Notify CrazyGames that gameplay has started
+                if (window.CrazyGames && window.CrazyGames.SDK && window.CrazyGames.SDK.game) {
+                    window.CrazyGames.SDK.game.gameplayStart();
+                }
+            } catch (error) {
+                console.error("Error initializing game:", error);
             }
         }
 
@@ -1975,39 +2000,47 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
 
         // --- Game Loop ---
         const gameLoop = (timestamp: number) => {
-            if (!game) return;
+            try {
+                if (!game) return;
 
-            // Calculate time delta
-            const deltaTime = timestamp - game.lastUpdateTime;
-            game.lastUpdateTime = timestamp;
+                // Calculate time delta
+                const deltaTime = timestamp - game.lastUpdateTime;
+                game.lastUpdateTime = timestamp;
 
-            // Skip frame if delta is too large (tab was inactive)
-            if (deltaTime > 100) {
+                // Skip frame if delta is too large (tab was inactive)
+                if (deltaTime > 100) {
+                    game.animationFrameId = requestAnimationFrame(gameLoop);
+                    return;
+                }
+
+                // Only update if game is active
+                if (game.gameStarted && !game.gameOver) {
+                    // Update game state
+                    updateDiver(deltaTime);
+                    updateWeaponSystem(deltaTime);
+                    updateTreasures(deltaTime);
+                    updateHearts(deltaTime);  // Update hearts (new)
+                    // updateRescueDivers removed
+                    updateEnemies(deltaTime);
+                    updateCrabs(deltaTime);  // Update crab movement
+                    updateOxygenBubbles(deltaTime);
+                    updateOxygenBonus(deltaTime); // Update special oxygen bonus items
+                    updateParticles(deltaTime);
+                    updateLevel();
+                }
+
+                // Render game
+                render();
+
+                // Loop
                 game.animationFrameId = requestAnimationFrame(gameLoop);
-                return;
+            } catch (error) {
+                console.error("Error in game loop:", error);
+                // Try to recover or stop the loop to prevent browser freeze
+                if (game) {
+                    cancelAnimationFrame(game.animationFrameId!);
+                }
             }
-
-            // Only update if game is active
-            if (game.gameStarted && !game.gameOver) {
-                // Update game state
-                updateDiver(deltaTime);
-                updateWeaponSystem(deltaTime);
-                updateTreasures(deltaTime);
-                updateHearts(deltaTime);  // Update hearts (new)
-                // updateRescueDivers removed
-                updateEnemies(deltaTime);
-                updateCrabs(deltaTime);  // Update crab movement
-                updateOxygenBubbles(deltaTime);
-                updateOxygenBonus(deltaTime); // Update special oxygen bonus items
-                updateParticles(deltaTime);
-                updateLevel();
-            }
-
-            // Render game
-            render();
-
-            // Loop
-            game.animationFrameId = requestAnimationFrame(gameLoop);
         }
 
         // --- Game End ---

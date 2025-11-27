@@ -29,6 +29,8 @@ export default function DynamicJoystick({ onMove }: DynamicJoystickProps) {
 
     // Update fixed center on mount and resize
     useEffect(() => {
+        if (typeof window === 'undefined') return;
+
         const updateCenter = () => {
             if (joystickRef.current) {
                 const rect = joystickRef.current.getBoundingClientRect()
