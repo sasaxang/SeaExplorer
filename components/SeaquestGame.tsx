@@ -224,6 +224,7 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
         }
         keys: Record<string, boolean>
         lastUpdateTime: number
+        lastOxygenTime: number
     } | null>(null)
 
     const handleRestart = useCallback(() => {
@@ -369,6 +370,7 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
                 },
                 keys: { ArrowRight: false, ArrowLeft: false, ArrowUp: false, ArrowDown: false, Space: false },
                 lastUpdateTime: performance.now(),
+                lastOxygenTime: performance.now(),
             }
 
             // Clear the canvas immediately to remove the frozen frame from the previous game
@@ -499,6 +501,9 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
         const generateOxygenBubbles = (count: number) => {
             if (!game || !game.oxygenGenerator) return; // Add check for oxygenGenerator
 
+            // Update last oxygen time
+            game.lastOxygenTime = performance.now();
+
             for (let i = 0; i < count; i++) {
                 // Increase bubble size (from 10-20 to 12-24)
                 const radius = 12 + Math.random() * 12;
@@ -623,7 +628,9 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
                 if (!game) return;
                 game.gameStarted = true; game.gameOver = false; game.score = 0;
                 game.killCount = 0;
+                game.killCount = 0;
                 game.oxygen = MAX_OXYGEN; game.level = 1; game.lastUpdateTime = performance.now();
+                game.lastOxygenTime = performance.now();
                 game.playerLives = 3; // Initialize with 3 lives
 
                 // Start playing background music when the game initializes
@@ -1282,8 +1289,27 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
                 }
             }
 
-            // Less frequent smaller oxygen bubbles (reduced from 0.01 to 0.005)
-            if (Math.random() < 0.005 * scaleFactor) {
+            // Dynamic Oxygen Generation Logic
+            const currentTime = performance.now();
+            const timeSinceLastOxygen = currentTime - game.lastOxygenTime;
+            // oxygenPercentage already calculated above
+
+            // Base probability
+            let generationChance = 0.005;
+
+            // 1. Stress factor: Increase chance as oxygen gets lower
+            if (oxygenPercentage < 0.5) {
+                // Linearly increase chance from 0.005 to 0.02 (4x) as oxygen goes from 50% to 0%
+                generationChance += (0.5 - oxygenPercentage) * 0.03;
+            }
+
+            // 2. Pity Timer: Force generation if no bubbles for too long (3 seconds)
+            // Reduce threshold when critical
+            const pityThreshold = oxygenPercentage < 0.3 ? 2000 : 3000;
+            const forceGenerate = timeSinceLastOxygen > pityThreshold;
+
+            // Generate smaller oxygen bubbles
+            if (forceGenerate || Math.random() < generationChance * scaleFactor) {
                 generateOxygenBubbles(1);
             }
 
