@@ -2,8 +2,6 @@
 
 A modern, browser-based implementation of the classic Seaquest game built with Next.js, React, and TypeScript. Navigate the deep ocean, battle sea creatures, collect treasures, and manage your oxygen supply in this thrilling underwater adventure!
 
-![SeaExplorer Game](public/images/png/ui/game_logo.png)
-
 ## 🎮 Game Overview
 
 Control a submarine through dangerous underwater depths, where you must:
