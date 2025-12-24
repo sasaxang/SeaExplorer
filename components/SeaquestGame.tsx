@@ -336,6 +336,7 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
                 // rescueDivers removed
                 enemies: [],
                 crabs: [], // Initialize crabs array
+                jellyfishes: [], // Initialize jellyfishes array
                 oxygenBubbles: [],
                 harpoons: [],
                 particles: [], // Initialize particles
@@ -433,7 +434,7 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
         // Rescue diver generation removed
         const generateEnemies = (count: number) => {
             // Further reduce enemy count - only 1/5 of previous count
-            if (game.enemies.length > 2 + Math.floor(game.level / 2)) {
+            if (game.enemies.length > 3 + game.level) {
                 return;
             }
 
@@ -600,6 +601,27 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
             });
         }
 
+        // Generate a jellyfish that provides temporary protection
+        const generateJellyfish = () => {
+            if (!game) return;
+
+            const x = 50 + Math.random() * (canvas.width - 100);
+            const y = canvas.height + 20; // Start below screen
+
+            game.jellyfishes.push({
+                x,
+                y,
+                width: 40,
+                height: 50,
+                dx: 0,
+                dy: -1, // Moves up
+                speed: 0.5 + Math.random() * 0.5,
+                color: "rgba(200, 220, 255, 0.6)",
+                tentacleOffset: Math.random() * Math.PI * 2,
+                opacity: 0.7
+            });
+        }
+
         // --- Particle Explosion Function ---
         const createExplosion = (x: number, y: number, color: string) => {
             if (!game) return;
@@ -650,6 +672,7 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
                 game.treasures = []; game.enemies = [];
                 game.oxygenBubbles = []; game.harpoons = []; game.particles = [];
                 game.hearts = []; game.crabs = []; // Clear hearts and crabs
+                game.jellyfishes = []; // Clear jellyfishes
                 game.oxygenBonus = []; // Clear oxygen bonus
                 // Reset oxygen generator position
                 game.oxygenGenerator = {
@@ -1069,25 +1092,40 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
                     enemy.x = -enemy.width;
                 }
 
-                // Collision with player (if no shield active)
-                if (isColliding(game.diver, enemy) && !game.diver.isShieldActive) {
-                    // Player hit by enemy!
-                    game.oxygen = Math.max(0, game.oxygen - 30);
+                // Collision with player
+                if (isColliding(game.diver, enemy)) {
+                    if (game.diver.isShieldActive) {
+                        // Shield active: Destroy enemy!
+                        createExplosion(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, enemy.color);
+                        createExplosion(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, "#ffffff"); // Flash
+                        playSound('explosion');
 
-                    // Create damage effect
-                    createExplosion(
-                        game.diver.x + game.diver.width / 2,
-                        game.diver.y + game.diver.height / 2,
-                        "#ff0000"
-                    );
+                        // Remove enemy
+                        game.enemies = game.enemies.filter(e => e !== enemy);
+                        game.killCount++;
+                        game.score += 100; // Bonus points
 
-                    // Reset combo
-                    game.diver.comboCounter = 0;
-                    game.diver.comboTimer = 0;
+                        // Spawn replacement soon
+                        setTimeout(() => generateEnemies(1), 1000 + Math.random() * 2000);
+                    } else {
+                        // Player hit by enemy!
+                        game.oxygen = Math.max(0, game.oxygen - 30);
 
-                    // Push the enemy away
-                    enemy.dx = -enemy.dx;
-                    enemy.x += enemy.dx * 20;
+                        // Create damage effect
+                        createExplosion(
+                            game.diver.x + game.diver.width / 2,
+                            game.diver.y + game.diver.height / 2,
+                            "#ff0000"
+                        );
+
+                        // Reset combo
+                        game.diver.comboCounter = 0;
+                        game.diver.comboTimer = 0;
+
+                        // Push the enemy away
+                        enemy.dx = -enemy.dx;
+                        enemy.x += enemy.dx * 20;
+                    }
                 }
 
                 // Collision with harpoons
@@ -1225,6 +1263,39 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
             }
         }
 
+        const updateJellyfishes = (deltaTime: number) => {
+            if (!game) return;
+            const scaleFactor = deltaTime / (1000 / 60);
+
+            // Spawn logic (rare)
+            if (game.jellyfishes.length === 0 && Math.random() < 0.001 * scaleFactor) {
+                generateJellyfish();
+            }
+
+            game.jellyfishes = game.jellyfishes.filter(jelly => {
+                // Move up
+                jelly.y -= jelly.speed * scaleFactor;
+                jelly.tentacleOffset += 0.1 * scaleFactor;
+
+                // Collision with diver
+                if (isColliding(game.diver, jelly)) {
+                    // Activate shield
+                    game.diver.isShieldActive = true;
+                    game.diver.shieldTimer = 600; // 10 seconds at 60fps
+
+                    playSound('bubble');
+
+                    createExplosion(jelly.x + jelly.width / 2, jelly.y + jelly.height / 2, jelly.color);
+                    createExplosion(jelly.x + jelly.width / 2, jelly.y + jelly.height / 2, "#ffffff");
+
+                    return false; // Remove jellyfish
+                }
+
+                // Remove if off screen top
+                return jelly.y > -100;
+            });
+        }
+
         const updateOxygenBubbles = (deltaTime: number) => {
             if (!game) return;
             const scaleFactor = deltaTime / (1000 / 60);
@@ -1236,8 +1307,9 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
             // Calculate the depth factor (0 at top, 1 at bottom)
             const depthFactor = game.diver.y / canvas.height;
 
-            // Adjust depletion rate based on depth (1.0x at top, 2.0x at bottom)
-            const depthMultiplier = 1.0 + depthFactor;
+            // Adjust depletion rate based on depth (1.0x at top, 1.5x at bottom)
+            // Reduced penalty from 2.0x to 1.5x as requested
+            const depthMultiplier = 1.0 + (depthFactor * 0.5);
 
             // Deplete player oxygen over time with depth factor
             game.oxygen = Math.max(0, game.oxygen - (game.diver.oxygenDepletionRate * depthMultiplier) * scaleFactor);
@@ -1374,8 +1446,11 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
             if (!game) return;
 
             // Check if we should level up (score-based progression)
-            const levelThreshold = 2000 * game.level;
-            if (game.score >= levelThreshold && game.level < 5) {
+            // Geometric progression: 2000 * 1.5^(level-1)
+            const levelThreshold = Math.floor(2000 * Math.pow(1.5, game.level - 1));
+
+            // Remove level cap (was game.level < 5)
+            if (game.score >= levelThreshold) {
                 game.level++;
 
                 // Difficulty increases
@@ -1456,6 +1531,9 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
 
             // Draw crabs
             drawCrabs();
+
+            // Draw jellyfishes
+            drawJellyfishes();
 
             // Draw oxygen generator
             drawOxygenGenerator();
@@ -1632,6 +1710,60 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
                     crab.height,
                     crab.color // Fallback color if image not loaded
                 );
+            }
+        }
+
+        const drawJellyfishes = () => {
+            if (!game || !ctx) return;
+
+            for (const jelly of game.jellyfishes) {
+                ctx.save();
+                ctx.globalAlpha = jelly.opacity;
+                ctx.fillStyle = jelly.color;
+
+                // Draw bell (body)
+                ctx.beginPath();
+                ctx.arc(jelly.x + jelly.width / 2, jelly.y + jelly.height / 3, jelly.width / 2, Math.PI, 0);
+
+                // Curve botom of bell
+                ctx.bezierCurveTo(
+                    jelly.x + jelly.width, jelly.y + jelly.height / 2,
+                    jelly.x, jelly.y + jelly.height / 2,
+                    jelly.x, jelly.y + jelly.height / 3
+                );
+                ctx.fill();
+
+                // Inner rim hint
+                ctx.strokeStyle = "rgba(255,255,255,0.3)";
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                // Draw tentacles
+                ctx.strokeStyle = jelly.color;
+                ctx.lineWidth = 2;
+
+                const numTentacles = 4;
+                for (let i = 0; i < numTentacles; i++) {
+                    const tX = jelly.x + (jelly.width / (numTentacles + 1)) * (i + 1);
+                    const tY = jelly.y + jelly.height / 3; // Start from bottom of bell
+
+                    ctx.beginPath();
+                    ctx.moveTo(tX, tY);
+
+                    // Sine wave tentacle movement
+                    const wavePhase = jelly.tentacleOffset + i;
+                    const cp1x = tX + Math.sin(wavePhase) * 10;
+                    const cp1y = tY + jelly.height / 3;
+                    const cp2x = tX - Math.sin(wavePhase) * 10;
+                    const cp2y = tY + (jelly.height / 3) * 2;
+                    const endX = tX + Math.sin(wavePhase + 1) * 5;
+                    const endY = jelly.y + jelly.height;
+
+                    ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, endX, endY);
+                    ctx.stroke();
+                }
+
+                ctx.restore();
             }
         }
 
@@ -1848,8 +1980,19 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
             // Draw shield if active
             if (game.diver.isShieldActive) {
                 ctx.save();
-                const shieldOpacity = 0.3 + 0.2 * Math.sin(performance.now() * 0.01);
-                ctx.fillStyle = `rgba(30, 144, 255, ${shieldOpacity})`;
+
+                // Determine pulse based on remaining time
+                let pulseSpeed = 0.01;
+                let colorBase = "rgba(30, 144, 255"; // Blue
+
+                // If ending soon (last 3 seconds ~ 180 frames), pulsate faster and change color
+                if (game.diver.shieldTimer < 180) {
+                    pulseSpeed = 0.05; // 5x faster
+                    colorBase = "rgba(255, 100, 100"; // Reddish warning
+                }
+
+                const shieldOpacity = 0.3 + 0.2 * Math.sin(performance.now() * pulseSpeed);
+                ctx.fillStyle = `${colorBase}, ${shieldOpacity})`;
                 ctx.beginPath();
                 ctx.arc(
                     game.diver.x + game.diver.width / 2,
@@ -2085,6 +2228,7 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
                     // updateRescueDivers removed
                     updateEnemies(deltaTime);
                     updateCrabs(deltaTime);  // Update crab movement
+                    updateJellyfishes(deltaTime); // Update jellyfishes
                     updateOxygenBubbles(deltaTime);
                     updateOxygenBonus(deltaTime); // Update special oxygen bonus items
                     updateParticles(deltaTime);

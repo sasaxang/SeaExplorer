@@ -95,51 +95,61 @@ export interface OxygenBonus extends GameObject {
 }
 
 export interface Diver {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    speed: number;
-    baseSpeed: number;
-    dx: number;
-    dy: number;
-    color: string;
-    oxygenDepletionRate: number;
-    size: number;
-    canFire: boolean;
-    weaponCooldown: number;
-    weaponCooldownMax: number;
-    facingDirection: 'left' | 'right';
-    comboCounter: number;
-    comboTimer: number;
-    isShieldActive: boolean;
-    shieldTimer: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  speed: number;
+  baseSpeed: number;
+  dx: number;
+  dy: number;
+  color: string;
+  oxygenDepletionRate: number;
+  size: number;
+  canFire: boolean;
+  weaponCooldown: number;
+  weaponCooldownMax: number;
+  facingDirection: 'left' | 'right';
+  comboCounter: number;
+  comboTimer: number;
+  isShieldActive: boolean;
+  shieldTimer: number;
 }
 
 export type GameMode = 'classic' | 'shark-frenzy' | 'treasure-hunt';
 
 export interface GameInstance {
-    ctx: CanvasRenderingContext2D | null;
-    animationFrameId: number | null;
-    gameStarted: boolean;
-    gameOver: boolean;
-    score: number;
-    oxygen: number;
-    level: number;
-    playerLives: number;
-    hearts: Heart[];
-    treasures: Treasure[];
-    enemies: Enemy[];
-    crabs: Crab[];
-    oxygenBubbles: OxygenBubble[];
-    harpoons: Harpoon[];
-    particles: Particle[];
-    oxygenBonus: OxygenBonus[];
-    oxygenGenerator: { x: number, y: number, width: number, height: number };
-    diver: Diver;
-    keys: Record<string, boolean>;
-    lastUpdateTime: number;
-    gameMode: GameMode;
-    treasureHuntTimer: number;
-    totalTreasuresInLevel: number;
+  ctx: CanvasRenderingContext2D | null;
+  animationFrameId: number | null;
+  gameStarted: boolean;
+  gameOver: boolean;
+  score: number;
+  oxygen: number;
+  level: number;
+  playerLives: number;
+  hearts: Heart[];
+  treasures: Treasure[];
+  enemies: Enemy[];
+  crabs: Crab[];
+  oxygenBubbles: OxygenBubble[];
+  harpoons: Harpoon[];
+  particles: Particle[];
+  oxygenBonus: OxygenBonus[];
+  oxygenGenerator: { x: number, y: number, width: number, height: number };
+  diver: Diver;
+  keys: Record<string, boolean>;
+  lastUpdateTime: number;
+  gameMode: GameMode;
+  treasureHuntTimer: number;
+  totalTreasuresInLevel: number;
+  jellyfishes: Jellyfish[];
+}
+
+export interface Jellyfish extends GameObject {
+  dx: number;
+  dy: number;
+  speed: number;
+  tentacleOffset: number;
+  opacity: number;
+  color: string;
 }
