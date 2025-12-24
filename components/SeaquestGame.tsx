@@ -4,6 +4,10 @@ import { useEffect, useRef, useState, useCallback } from "react"
 import { useGameImages, drawGameImage, ImageFormat } from '@/components/GameImageLoader'
 import { initSounds, playSound, stopSound, setMuted, isMuted, playBackgroundMusic, playStartMusic, resumeAudioContext } from '@/utils/sounds'
 import TouchControls from './TouchControls'
+import Auth from './Auth'
+import { saveGameResult } from '@/utils/scoreService'
+import { User } from 'firebase/auth'
+import { Jellyfish } from './types'
 
 // --- Interfaces ---
 interface GameObject {
@@ -129,6 +133,7 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
     const [highScore, setHighScore] = useState(0)
     // Sound is always on by default
     const soundMuted = false
+    const [user, setUser] = useState<User | null>(null)
 
     // Load game images with the specified format
     const { images, loadingComplete } = useGameImages(imageFormat)
@@ -195,6 +200,7 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
         // rescueDivers removed
         enemies: Enemy[]
         crabs: Crab[] // Add crabs array for crab enemies 
+        jellyfishes: Jellyfish[] // Add jellyfishes
         oxygenBubbles: OxygenBubble[]
         harpoons: Harpoon[]
         particles: Particle[] // Added particles array
@@ -2289,6 +2295,15 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
                     localStorage.setItem('seaquest_highscore', game.score.toString());
                 }
             }
+
+            // Save to Firebase if logged in
+            if (user) {
+                saveGameResult(user.uid, user.displayName || "Anonymous", {
+                    score: game.score,
+                    level: game.level,
+                    killCount: game.killCount
+                });
+            }
         }
 
         // --- Input Handling ---
@@ -2354,6 +2369,8 @@ export default function SeaquestGame({ imageFormat = 'png' }: SeaquestGameProps)
                     boxShadow: "0 0 20px rgba(0, 168, 255, 0.5)"
                 }}
             />
+
+            <Auth onUserChange={setUser} />
 
             {uiGameState === "start" && (
                 <div className="game-overlay" style={{ background: 'transparent' }}>
